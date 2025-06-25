@@ -32,6 +32,24 @@ type PasswordRecovery = {
   company_name: string;
 };
 
+type BulkAnalysisResults = {
+  analysis_id: string;
+  job_description: string;
+  total_cvs: number;
+  successful_analyses: number;
+  failed_analyses: number;
+  average_score: number;
+  top_candidates: Array<{
+    filename: string;
+    score: number;
+    summary: string;
+    tags: string[];
+  }>;
+  csv_data: string; // The actual CSV content
+  analysis_timestamp: string;
+  user_email?: string; // Optional user identifier
+};
+
 /**
  * Send job creation notification to Make.com
  */
@@ -82,6 +100,30 @@ export const sendApplicantNotificationWebhook = async (
     return response.ok;
   } catch (error) {
     console.error('Failed to send applicant notification webhook:', error);
+    return false;
+  }
+};
+
+/**
+ * Send bulk analysis results to Make.com
+ */
+export const sendBulkAnalysisWebhook = async (results: BulkAnalysisResults): Promise<boolean> => {
+  try {
+    const response = await fetch(MAKE_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...results,
+        event_type: 'bulk_analysis_completed',
+      }),
+    });
+    
+    console.log('Bulk analysis webhook sent:', response.ok ? 'Success' : 'Failed');
+    return response.ok;
+  } catch (error) {
+    console.error('Failed to send bulk analysis webhook:', error);
     return false;
   }
 };

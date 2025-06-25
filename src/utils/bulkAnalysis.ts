@@ -1,5 +1,6 @@
 import { extractTextFromFile, validateExtractedText } from './pdfTextExtraction';
 import { analyzeWithOpenAI, validateOpenAIApiKey } from './openaiAnalysis';
+import { sendBulkAnalysisWebhook } from './makeWebhook';
 
 interface AnalysisResult {
   fileName: string;
@@ -157,6 +158,44 @@ export const analyzeBulkCVs = async (
       console.log(`   📈 Average score: ${avgScore}%`);
       console.log(`   🏆 Top score: ${topScore}%`);
       console.log(`   🎯 Top candidate: ${successful[0].fileName} (${successful[0].matchScore}%)`);
+    }
+    
+    // Send results to webhook
+    try {
+      console.log('📤 Sending bulk analysis results to webhook...');
+      
+      const csvData = exportResultsToCSV(results);
+      const topCandidates = getTopCandidates(results, 5);
+      const avgScore = successful.length > 0 
+        ? Math.round(successful.reduce((sum, r) => sum + r.matchScore, 0) / successful.length)
+        : 0;
+      
+      const webhookData = {
+        analysis_id: `bulk_${Date.now()}`,
+        job_description: jobDescription.substring(0, 500) + (jobDescription.length > 500 ? '...' : ''),
+        total_cvs: results.length,
+        successful_analyses: successful.length,
+        failed_analyses: failed.length,
+        average_score: avgScore,
+        top_candidates: topCandidates.map(candidate => ({
+          filename: candidate.fileName,
+          score: candidate.matchScore,
+          summary: candidate.summary.substring(0, 200) + (candidate.summary.length > 200 ? '...' : ''),
+          tags: candidate.tags
+        })),
+        csv_data: csvData,
+        analysis_timestamp: new Date().toISOString()
+      };
+      
+      const webhookSuccess = await sendBulkAnalysisWebhook(webhookData);
+      
+      if (webhookSuccess) {
+        console.log('✅ Bulk analysis results sent to webhook successfully');
+      } else {
+        console.warn('⚠️ Failed to send bulk analysis results to webhook');
+      }
+    } catch (webhookError) {
+      console.error('❌ Error sending webhook:', webhookError);
     }
     
     return results;

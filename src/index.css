@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --toast-bg: theme('colors.beige.50');
+    --toast-color: theme('colors.gray.900');
+  }
+
+  .dark {
+    --toast-bg: theme('colors.black');
+    --toast-color: theme('colors.white');
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-beige-50 dark:bg-black text-gray-900 dark:text-white;
+  }
+}
+
+/* Modern scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300/50 dark:bg-gray-700/50 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-300/70 dark:bg-gray-700/70;
+}
+
+/* Better button and link tap targets on mobile */
+@media (max-width: 640px) {
+  button, 
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Better focus styles */
+:focus-visible {
+  @apply outline-none ring-2 ring-gray-900 dark:ring-white;
+}
+
+/* Custom selection color */
+::selection {
+  @apply bg-gray-900 dark:bg-white text-white dark:text-gray-900;
+}
+
+/* Glass effect */
+.glass {
+  @apply bg-beige-50/10 dark:bg-black/10 backdrop-blur-sm border border-beige-50/20 dark:border-white/10;
+}
+
+/* Gradient text */
+@layer components {
+  .gradient-text {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-white/80;
+  }
+}
+
+/* Card hover effect */
+.card-hover {
+  @apply transition-all duration-300;
+}
+
+.card-hover:hover {
+  @apply -translate-y-1 shadow-xl;
+}
+
+.dark .card-hover:hover {
+  @apply shadow-2xl shadow-gray-900/20;
+}
+
+/* Container styles */
+.container-custom {
+  @apply max-w-8xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Section spacing */
+.section-spacing {
+  @apply py-16 sm:py-24;
+}

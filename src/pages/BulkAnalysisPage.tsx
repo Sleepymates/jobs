@@ -339,7 +339,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
     <div className="flex flex-col min-h-screen bg-beige-50 dark:bg-black">
       <Header />
       
-      <main className="flex-grow py-6">
+      <main className="flex-grow py-8">
         <div className="relative">
           <div className="absolute inset-0 pointer-events-none">
             <FloatingPaths position={1} />

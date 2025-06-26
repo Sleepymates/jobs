@@ -86,7 +86,7 @@ export async function extractTextFromPDF(file: File): Promise<TextExtractionResu
 }
 
 /**
- * Extract text from DOCX file using multiple methods
+ * Extract text from DOCX file - simplified and robust approach
  */
 export async function extractTextFromDOCX(file: File): Promise<TextExtractionResult> {
   try {
@@ -95,39 +95,117 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Method 1: Try to extract as ZIP and find document.xml
-    let extractedText = await tryZipExtraction(uint8Array);
+    // Convert to string for text extraction
+    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
+    const rawText = decoder.decode(uint8Array);
     
-    // Method 2: If ZIP extraction fails, try direct text extraction
-    if (!extractedText || extractedText.length < 100) {
-      console.log('🔄 ZIP extraction insufficient, trying direct text extraction...');
-      extractedText = await tryDirectTextExtraction(uint8Array);
+    console.log(`📦 DOCX file size: ${arrayBuffer.byteLength} bytes`);
+    
+    let extractedText = '';
+    const textParts: string[] = [];
+    
+    // Method 1: Extract from w:t XML elements (Word text elements)
+    const textElementRegex = /<w:t[^>]*?>(.*?)<\/w:t>/gs;
+    let match;
+    
+    while ((match = textElementRegex.exec(rawText)) !== null) {
+      let textContent = match[1];
+      
+      // Decode XML entities
+      textContent = textContent
+        .replace(/</g, '<')
+        .replace(/>/g, '>')
+        .replace(/&/g, '&')
+        .replace(/"/g, '"')
+        .replace(/&apos;/g, "'");
+      
+      if (textContent.trim().length > 0) {
+        textParts.push(textContent.trim());
+      }
     }
     
-    // Method 3: If still no good content, try binary text search
-    if (!extractedText || extractedText.length < 100) {
-      console.log('🔄 Direct extraction insufficient, trying binary text search...');
-      extractedText = await tryBinaryTextSearch(uint8Array);
+    console.log(`📝 Found ${textParts.length} text elements from w:t tags`);
+    
+    // If we didn't get enough content from w:t elements, try broader extraction
+    if (textParts.length < 10) {
+      console.log('🔄 Trying broader text extraction...');
+      
+      // Method 2: Extract from paragraph elements
+      const paragraphRegex = /<w:p[^>]*?>(.*?)<\/w:p>/gs;
+      const paragraphParts: string[] = [];
+      
+      while ((match = paragraphRegex.exec(rawText)) !== null) {
+        const paraContent = match[1];
+        
+        // Remove all XML tags and extract text
+        const cleanContent = paraContent
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/</g, '<')
+          .replace(/>/g, '>')
+          .replace(/&/g, '&')
+          .replace(/"/g, '"')
+          .replace(/&apos;/g, "'")
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (cleanContent.length > 2 && /[a-zA-Z]/.test(cleanContent)) {
+          paragraphParts.push(cleanContent);
+        }
+      }
+      
+      console.log(`📝 Found ${paragraphParts.length} text parts from paragraphs`);
+      
+      if (paragraphParts.length > textParts.length) {
+        textParts.length = 0; // Clear previous results
+        textParts.push(...paragraphParts);
+      }
     }
     
-    // Method 4: Last resort - enhanced pattern matching
-    if (!extractedText || extractedText.length < 100) {
-      console.log('🔄 Binary search insufficient, trying enhanced pattern matching...');
-      extractedText = await tryEnhancedPatternMatching(uint8Array);
+    // If still not enough content, try extracting any readable text
+    if (textParts.length < 5) {
+      console.log('🔄 Trying general text extraction...');
+      
+      // Method 3: Look for any readable text sequences
+      const readableTextRegex = /[A-Za-z][A-Za-z0-9\s.,;:!?()-]{10,}/g;
+      const readableMatches = rawText.match(readableTextRegex);
+      
+      if (readableMatches) {
+        const cleanMatches = readableMatches
+          .map(text => text.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim())
+          .filter(text => text.length > 10 && /[a-zA-Z]{3,}/.test(text))
+          .slice(0, 50); // Limit to prevent too much noise
+        
+        console.log(`📝 Found ${cleanMatches.length} readable text sequences`);
+        
+        if (cleanMatches.length > textParts.length) {
+          textParts.length = 0; // Clear previous results
+          textParts.push(...cleanMatches);
+        }
+      }
     }
     
-    // If we still don't have good content, use fallback text instead of throwing error
-    if (!extractedText || extractedText.length < 50) {
-      console.warn('⚠️ Could not extract meaningful text from DOCX file, using fallback text');
-      extractedText = `CV/Resume content could not be automatically extracted from ${file.name}. This file may be corrupted, password-protected, contain only images, or use an unsupported format. Manual review of the original document is recommended. The applicant has submitted a document titled "${file.name}" which should be reviewed directly by the hiring team.`;
-    }
+    // Combine all extracted text parts
+    extractedText = textParts.join(' ').trim();
+    
+    // Clean up the final text
+    extractedText = extractedText
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s.,;:!?()-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     
     const wordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
     
     console.log(`✅ DOCX text extraction completed:`);
     console.log(`   - Total characters: ${extractedText.length}`);
     console.log(`   - Word count: ${wordCount}`);
+    console.log(`   - Text parts found: ${textParts.length}`);
     console.log(`   - Preview: ${extractedText.substring(0, 300)}...`);
+    
+    // If we still don't have meaningful content, throw an error like PDF does
+    if (extractedText.length < 100) {
+      throw new Error('Extracted text is too short. The DOCX might be image-based, corrupted, or password-protected.');
+    }
     
     return {
       text: extractedText,
@@ -137,262 +215,8 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
     
   } catch (error) {
     console.error('❌ DOCX text extraction failed:', error);
-    
-    // Even if there's an unexpected error, provide fallback text instead of throwing
-    const fallbackText = `CV/Resume content could not be automatically extracted from ${file.name} due to a technical error. The applicant has submitted a document which should be reviewed directly by the hiring team. Error details: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    
-    console.log('🔄 Using fallback text due to extraction error');
-    
-    return {
-      text: fallbackText,
-      pageCount: 1,
-      wordCount: fallbackText.split(/\s+/).filter(word => word.length > 0).length
-    };
+    throw new Error(`Failed to extract text from DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
-}
-
-/**
- * Method 1: Try to extract document.xml from ZIP structure
- */
-async function tryZipExtraction(uint8Array: Uint8Array): Promise<string | null> {
-  try {
-    console.log('📦 Attempting ZIP extraction...');
-    
-    // Look for ZIP file signature
-    const view = new DataView(uint8Array.buffer);
-    if (view.getUint32(0, true) !== 0x04034b50) {
-      console.log('❌ Not a valid ZIP file');
-      return null;
-    }
-    
-    // Convert to text to search for XML content
-    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
-    const fullText = decoder.decode(uint8Array);
-    
-    // Look for document.xml content
-    const documentXmlMatch = fullText.match(/<w:document[^>]*>[\s\S]*?<\/w:document>/);
-    if (documentXmlMatch) {
-      console.log('✅ Found document.xml content');
-      return extractTextFromXML(documentXmlMatch[0]);
-    }
-    
-    console.log('❌ Could not find document.xml in ZIP');
-    return null;
-  } catch (error) {
-    console.error('❌ ZIP extraction failed:', error);
-    return null;
-  }
-}
-
-/**
- * Method 2: Direct text extraction from binary data
- */
-async function tryDirectTextExtraction(uint8Array: Uint8Array): Promise<string | null> {
-  try {
-    console.log('📝 Attempting direct text extraction...');
-    
-    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
-    const text = decoder.decode(uint8Array);
-    
-    // Look for w:t elements directly
-    const textElements = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
-    if (textElements && textElements.length > 0) {
-      console.log(`✅ Found ${textElements.length} text elements`);
-      
-      const extractedTexts = textElements.map(element => {
-        const match = element.match(/<w:t[^>]*>([^<]*)<\/w:t>/);
-        return match ? decodeXmlEntities(match[1]) : '';
-      }).filter(text => text.trim().length > 0);
-      
-      const result = extractedTexts.join(' ').trim();
-      console.log(`📝 Direct extraction result: ${result.length} characters`);
-      return result.length > 50 ? result : null;
-    }
-    
-    console.log('❌ No text elements found in direct extraction');
-    return null;
-  } catch (error) {
-    console.error('❌ Direct text extraction failed:', error);
-    return null;
-  }
-}
-
-/**
- * Method 3: Binary text search for readable content
- */
-async function tryBinaryTextSearch(uint8Array: Uint8Array): Promise<string | null> {
-  try {
-    console.log('🔍 Attempting binary text search...');
-    
-    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
-    const text = decoder.decode(uint8Array);
-    
-    // Look for any readable text patterns that might be CV content
-    const readableTexts: string[] = [];
-    
-    // Pattern 1: Look for common CV words followed by readable text
-    const cvPatterns = [
-      /(?:experience|education|skills|work|employment|career|professional|summary|objective|qualifications)[:\s]+([a-zA-Z0-9\s.,;:!?()-]{20,200})/gi,
-      /(?:university|college|degree|bachelor|master|phd|certification)[:\s]+([a-zA-Z0-9\s.,;:!?()-]{10,100})/gi,
-      /(?:company|corporation|inc|ltd|llc|solutions|technologies|systems)[:\s]*([a-zA-Z0-9\s.,;:!?()-]{10,100})/gi,
-      /(?:javascript|python|java|react|angular|vue|node|html|css|sql|aws|azure|docker)[:\s]*([a-zA-Z0-9\s.,;:!?()-]{10,100})/gi
-    ];
-    
-    cvPatterns.forEach(pattern => {
-      const matches = text.match(pattern);
-      if (matches) {
-        matches.forEach(match => {
-          const cleaned = match.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim();
-          if (cleaned.length > 20 && /[a-zA-Z]{3,}/.test(cleaned)) {
-            readableTexts.push(cleaned);
-          }
-        });
-      }
-    });
-    
-    // Pattern 2: Look for sequences of readable text
-    const readableSequences = text.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()-]{30,}/g);
-    if (readableSequences) {
-      readableSequences.forEach(sequence => {
-        const cleaned = sequence.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (cleaned.length > 30 && /[a-zA-Z]{5,}/.test(cleaned)) {
-          readableTexts.push(cleaned);
-        }
-      });
-    }
-    
-    if (readableTexts.length > 0) {
-      const result = readableTexts.join(' ').trim();
-      console.log(`✅ Binary search found ${readableTexts.length} text segments, total: ${result.length} characters`);
-      return result.length > 50 ? result : null;
-    }
-    
-    console.log('❌ No readable text found in binary search');
-    return null;
-  } catch (error) {
-    console.error('❌ Binary text search failed:', error);
-    return null;
-  }
-}
-
-/**
- * Method 4: Enhanced pattern matching for any text content
- */
-async function tryEnhancedPatternMatching(uint8Array: Uint8Array): Promise<string | null> {
-  try {
-    console.log('🎯 Attempting enhanced pattern matching...');
-    
-    // Try different encodings
-    const encodings = ['utf-8', 'utf-16le', 'utf-16be', 'latin1'];
-    
-    for (const encoding of encodings) {
-      try {
-        const decoder = new TextDecoder(encoding, { ignoreBOM: true, fatal: false });
-        const text = decoder.decode(uint8Array);
-        
-        // Look for any meaningful text patterns
-        const meaningfulTexts: string[] = [];
-        
-        // Extract any text that looks like names, companies, or skills
-        const patterns = [
-          /[A-Z][a-z]+\s+[A-Z][a-z]+/g, // Names like "John Smith"
-          /[A-Z][a-zA-Z\s]+(?:Inc|Corp|Ltd|LLC|Company|Solutions|Technologies|University|College)/g, // Company/Education names
-          /(?:JavaScript|Python|Java|React|Angular|Vue|Node\.js|HTML|CSS|SQL|AWS|Azure|Docker|Kubernetes)/gi, // Technologies
-          /\b(?:Bachelor|Master|PhD|Degree|Certificate|Certification)\b[^.]{0,50}/gi, // Education
-          /\b(?:Manager|Engineer|Developer|Analyst|Specialist|Coordinator|Director|Lead)\b[^.]{0,30}/gi, // Job titles
-          /\b(?:experience|years|worked|developed|managed|led|created|implemented|designed)\b[^.]{0,100}/gi // Experience descriptions
-        ];
-        
-        patterns.forEach(pattern => {
-          const matches = text.match(pattern);
-          if (matches) {
-            matches.forEach(match => {
-              const cleaned = match.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim();
-              if (cleaned.length > 5 && /[a-zA-Z]{3,}/.test(cleaned)) {
-                meaningfulTexts.push(cleaned);
-              }
-            });
-          }
-        });
-        
-        if (meaningfulTexts.length > 3) {
-          const result = meaningfulTexts.join('. ').trim();
-          console.log(`✅ Enhanced pattern matching (${encoding}) found ${meaningfulTexts.length} segments, total: ${result.length} characters`);
-          return result.length > 50 ? result : null;
-        }
-      } catch (encodingError) {
-        console.log(`❌ Encoding ${encoding} failed:`, encodingError.message);
-      }
-    }
-    
-    console.log('❌ Enhanced pattern matching found no meaningful content');
-    return null;
-  } catch (error) {
-    console.error('❌ Enhanced pattern matching failed:', error);
-    return null;
-  }
-}
-
-/**
- * Extract text from XML content
- */
-function extractTextFromXML(xmlContent: string): string {
-  const textParts: string[] = [];
-  
-  try {
-    // Extract from w:t elements
-    const textElementRegex = /<w:t[^>]*>(.*?)<\/w:t>/gs;
-    let match;
-    
-    while ((match = textElementRegex.exec(xmlContent)) !== null) {
-      let textContent = match[1];
-      textContent = decodeXmlEntities(textContent);
-      
-      if (textContent.trim().length > 0) {
-        textParts.push(textContent.trim());
-      }
-    }
-    
-    // If we didn't get enough content, try extracting from paragraphs
-    if (textParts.length < 5) {
-      const paragraphRegex = /<w:p[^>]*>(.*?)<\/w:p>/gs;
-      while ((match = paragraphRegex.exec(xmlContent)) !== null) {
-        const paraContent = match[1];
-        
-        // Remove XML tags and extract text
-        const cleanContent = paraContent
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        if (cleanContent.length > 2) {
-          textParts.push(cleanContent);
-        }
-      }
-    }
-    
-    const result = textParts.join(' ').trim();
-    console.log(`📝 XML extraction result: ${textParts.length} parts, ${result.length} characters`);
-    
-    return result;
-  } catch (error) {
-    console.error('❌ XML text extraction failed:', error);
-    return textParts.join(' ').trim();
-  }
-}
-
-/**
- * Decode XML entities
- */
-function decodeXmlEntities(text: string): string {
-  return text
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/&/g, '&')
-    .replace(/"/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(parseInt(dec, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 /**

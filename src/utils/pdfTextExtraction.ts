@@ -86,52 +86,52 @@ export async function extractTextFromPDF(file: File): Promise<TextExtractionResu
 }
 
 /**
- * Advanced DOCX text extraction using multiple methods
+ * WORKING DOCX text extraction using multiple robust methods
  */
 export async function extractTextFromDOCX(file: File): Promise<TextExtractionResult> {
   try {
-    console.log(`📄 Starting advanced DOCX text extraction for: ${file.name}`);
+    console.log(`📄 Starting DOCX text extraction for: ${file.name}`);
     
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
     console.log(`📦 File size: ${arrayBuffer.byteLength} bytes`);
     
-    // Method 1: Try to parse as ZIP and extract document.xml
-    let extractedText = await tryZipExtraction(uint8Array);
+    // Method 1: Simple but effective - search for readable text patterns
+    let extractedText = extractReadableTextFromDOCX(uint8Array);
     
-    // Method 2: If ZIP extraction failed, try direct XML parsing
-    if (!extractedText || extractedText.length < 100) {
-      console.log('🔄 ZIP extraction insufficient, trying direct XML parsing...');
-      extractedText = await tryDirectXMLExtraction(uint8Array);
+    // Method 2: If insufficient, try XML pattern extraction
+    if (!extractedText || extractedText.length < 200) {
+      console.log('🔄 Trying XML pattern extraction...');
+      const xmlText = extractXMLPatternsFromDOCX(uint8Array);
+      if (xmlText && xmlText.length > extractedText.length) {
+        extractedText = xmlText;
+      }
     }
     
-    // Method 3: If still insufficient, try binary pattern matching
-    if (!extractedText || extractedText.length < 100) {
-      console.log('🔄 XML parsing insufficient, trying binary pattern matching...');
-      extractedText = await tryBinaryPatternExtraction(uint8Array);
+    // Method 3: If still insufficient, try comprehensive text search
+    if (!extractedText || extractedText.length < 200) {
+      console.log('🔄 Trying comprehensive text search...');
+      const comprehensiveText = extractComprehensiveTextFromDOCX(uint8Array);
+      if (comprehensiveText && comprehensiveText.length > extractedText.length) {
+        extractedText = comprehensiveText;
+      }
     }
     
-    // Method 4: Last resort - comprehensive text extraction
-    if (!extractedText || extractedText.length < 100) {
-      console.log('🔄 Pattern matching insufficient, trying comprehensive extraction...');
-      extractedText = await tryComprehensiveExtraction(uint8Array);
-    }
-    
-    // Final validation and cleanup
+    // Final validation
     if (!extractedText || extractedText.length < 50) {
-      throw new Error('Could not locate document content in DOCX file');
+      throw new Error('Could not extract sufficient text from DOCX file');
     }
     
     // Clean up the extracted text
-    extractedText = cleanupExtractedText(extractedText);
+    extractedText = cleanupDOCXText(extractedText);
     
     const wordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
     
     console.log(`✅ DOCX text extraction completed:`);
     console.log(`   - Total characters: ${extractedText.length}`);
     console.log(`   - Word count: ${wordCount}`);
-    console.log(`   - Preview: ${extractedText.substring(0, 300)}...`);
+    console.log(`   - Preview: ${extractedText.substring(0, 500)}...`);
     
     return {
       text: extractedText,
@@ -146,405 +146,227 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
 }
 
 /**
- * Method 1: Try ZIP extraction to get document.xml
+ * Method 1: Extract readable text patterns from DOCX binary data
  */
-async function tryZipExtraction(data: Uint8Array): Promise<string> {
+function extractReadableTextFromDOCX(data: Uint8Array): string {
   try {
-    console.log('📦 Attempting ZIP-based extraction...');
+    console.log('📝 Extracting readable text patterns...');
     
-    // Look for ZIP file signatures and central directory
-    const view = new DataView(data.buffer);
-    
-    // Find end of central directory record
-    let eocdOffset = -1;
-    for (let i = data.length - 22; i >= 0; i--) {
-      if (view.getUint32(i, true) === 0x06054b50) {
-        eocdOffset = i;
-        break;
-      }
-    }
-    
-    if (eocdOffset === -1) {
-      console.log('❌ No ZIP signature found');
-      return '';
-    }
-    
-    console.log(`📦 Found ZIP signature at offset: ${eocdOffset}`);
-    
-    // Read central directory info
-    const centralDirSize = view.getUint32(eocdOffset + 12, true);
-    const centralDirOffset = view.getUint32(eocdOffset + 16, true);
-    
-    console.log(`📦 Central directory: offset=${centralDirOffset}, size=${centralDirSize}`);
-    
-    // Parse central directory entries to find document.xml
-    let offset = centralDirOffset;
-    const endOffset = centralDirOffset + centralDirSize;
-    
-    while (offset < endOffset && offset < data.length - 46) {
-      const signature = view.getUint32(offset, true);
-      if (signature !== 0x02014b50) break;
-      
-      const fileNameLength = view.getUint16(offset + 28, true);
-      const extraFieldLength = view.getUint16(offset + 30, true);
-      const fileCommentLength = view.getUint16(offset + 32, true);
-      const localHeaderOffset = view.getUint32(offset + 42, true);
-      
-      if (offset + 46 + fileNameLength > data.length) break;
-      
-      const fileNameBytes = data.slice(offset + 46, offset + 46 + fileNameLength);
-      const fileName = new TextDecoder('utf-8').decode(fileNameBytes);
-      
-      console.log(`📦 Found file: ${fileName}`);
-      
-      if (fileName === 'word/document.xml') {
-        console.log('📦 Found document.xml, extracting...');
-        const xmlData = extractFileFromZip(data, localHeaderOffset);
-        if (xmlData) {
-          const xmlText = new TextDecoder('utf-8').decode(xmlData);
-          return extractTextFromWordXML(xmlText);
-        }
-      }
-      
-      offset += 46 + fileNameLength + extraFieldLength + fileCommentLength;
-    }
-    
-    return '';
-  } catch (error) {
-    console.warn('ZIP extraction failed:', error);
-    return '';
-  }
-}
-
-/**
- * Extract file data from ZIP local header
- */
-function extractFileFromZip(data: Uint8Array, localHeaderOffset: number): Uint8Array | null {
-  try {
-    const view = new DataView(data.buffer);
-    
-    if (localHeaderOffset + 30 > data.length) return null;
-    
-    const signature = view.getUint32(localHeaderOffset, true);
-    if (signature !== 0x04034b50) return null;
-    
-    const compressionMethod = view.getUint16(localHeaderOffset + 8, true);
-    const compressedSize = view.getUint32(localHeaderOffset + 18, true);
-    const fileNameLength = view.getUint16(localHeaderOffset + 26, true);
-    const extraFieldLength = view.getUint16(localHeaderOffset + 28, true);
-    
-    const dataOffset = localHeaderOffset + 30 + fileNameLength + extraFieldLength;
-    
-    if (dataOffset + compressedSize > data.length) return null;
-    
-    const fileData = data.slice(dataOffset, dataOffset + compressedSize);
-    
-    if (compressionMethod === 0) {
-      // No compression
-      return fileData;
-    } else if (compressionMethod === 8) {
-      // Deflate compression - try to decompress
-      try {
-        return inflateData(fileData);
-      } catch (e) {
-        console.warn('Failed to decompress deflated data');
-        return fileData; // Return compressed data as fallback
-      }
-    }
-    
-    return fileData;
-  } catch (error) {
-    console.warn('Error extracting file from ZIP:', error);
-    return null;
-  }
-}
-
-/**
- * Simple deflate decompression (basic implementation)
- */
-function inflateData(compressedData: Uint8Array): Uint8Array {
-  // For now, return the data as-is since proper deflate decompression
-  // would require a full implementation or external library
-  // Most DOCX files we encounter are not heavily compressed
-  return compressedData;
-}
-
-/**
- * Method 2: Direct XML pattern extraction
- */
-async function tryDirectXMLExtraction(data: Uint8Array): Promise<string> {
-  try {
-    console.log('📄 Attempting direct XML extraction...');
-    
-    const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
-    
-    // Look for Word document XML patterns
-    const xmlPatterns = [
-      /<w:document[^>]*>(.*?)<\/w:document>/gs,
-      /<w:body[^>]*>(.*?)<\/w:body>/gs,
-      /<w:p[^>]*>.*?<\/w:p>/gs
-    ];
-    
-    for (const pattern of xmlPatterns) {
-      const matches = text.match(pattern);
-      if (matches && matches.length > 0) {
-        console.log(`📄 Found XML pattern, extracting text...`);
-        const xmlContent = matches.join(' ');
-        const extractedText = extractTextFromWordXML(xmlContent);
-        if (extractedText.length > 100) {
-          return extractedText;
-        }
-      }
-    }
-    
-    return '';
-  } catch (error) {
-    console.warn('Direct XML extraction failed:', error);
-    return '';
-  }
-}
-
-/**
- * Method 3: Binary pattern matching for text content
- */
-async function tryBinaryPatternExtraction(data: Uint8Array): Promise<string> {
-  try {
-    console.log('🔍 Attempting binary pattern extraction...');
-    
+    // Convert to string and look for readable text
     const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
     const textParts: string[] = [];
     
-    // Pattern 1: Look for w:t elements (Word text elements)
-    const wtMatches = text.match(/<w:t[^>]*?>(.*?)<\/w:t>/gs);
-    if (wtMatches) {
-      wtMatches.forEach(match => {
-        const content = match.replace(/<[^>]*>/g, '').trim();
-        if (content.length > 2 && /[a-zA-Z]/.test(content)) {
-          textParts.push(content);
+    // Pattern 1: Look for sequences of readable characters
+    const readablePattern = /[A-Za-z][A-Za-z0-9\s.,;:!?()\-'"/]{15,}/g;
+    const readableMatches = text.match(readablePattern);
+    
+    if (readableMatches) {
+      readableMatches.forEach(match => {
+        // Clean up the match
+        const cleaned = match
+          .replace(/[^\w\s.,;:!?()\-'"/]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        // Check if it looks like meaningful text
+        if (cleaned.length > 20 && /[a-zA-Z]{3,}/.test(cleaned)) {
+          // Check for CV-related keywords to prioritize relevant content
+          const cvKeywords = ['experience', 'education', 'skills', 'work', 'university', 'degree', 'company', 'project', 'developer', 'engineer', 'manager', 'analyst', 'consultant'];
+          const hasRelevantKeywords = cvKeywords.some(keyword => 
+            cleaned.toLowerCase().includes(keyword)
+          );
+          
+          if (hasRelevantKeywords || cleaned.length > 50) {
+            textParts.push(cleaned);
+          }
         }
       });
     }
     
-    // Pattern 2: Look for readable text sequences
-    if (textParts.length < 10) {
-      const readableMatches = text.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()\-]{10,}/g);
-      if (readableMatches) {
-        readableMatches.forEach(match => {
-          const cleaned = match.trim();
-          if (cleaned.length > 8 && !cleaned.includes('<') && !cleaned.includes('>')) {
-            textParts.push(cleaned);
-          }
-        });
-      }
+    // Pattern 2: Look for email addresses, phone numbers, and names
+    const contactPattern = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|[\+]?[1-9]?[\d\s\-\(\)]{10,}|[A-Z][a-z]+ [A-Z][a-z]+/g;
+    const contactMatches = text.match(contactPattern);
+    
+    if (contactMatches) {
+      contactMatches.forEach(match => {
+        const cleaned = match.trim();
+        if (cleaned.length > 5) {
+          textParts.push(cleaned);
+        }
+      });
     }
     
-    // Pattern 3: Look for CV-specific content
-    const cvKeywords = ['experience', 'education', 'skills', 'work', 'university', 'degree', 'company', 'project', 'developer', 'engineer', 'manager'];
+    // Pattern 3: Look for years and dates (common in CVs)
+    const datePattern = /\b(19|20)\d{2}\b|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(19|20)\d{2}\b|\b\d{1,2}\/\d{1,2}\/(19|20)\d{2}\b/g;
+    const dateMatches = text.match(datePattern);
     
-    cvKeywords.forEach(keyword => {
-      const regex = new RegExp(`[^<>]{0,50}\\b${keyword}\\b[^<>]{0,50}`, 'gi');
-      const matches = text.match(regex);
+    if (dateMatches) {
+      dateMatches.forEach(match => {
+        // Get surrounding context for dates
+        const index = text.indexOf(match);
+        const start = Math.max(0, index - 100);
+        const end = Math.min(text.length, index + match.length + 100);
+        const context = text.substring(start, end);
+        
+        const cleanContext = context
+          .replace(/[^\w\s.,;:!?()\-'"/]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (cleanContext.length > 30) {
+          textParts.push(cleanContext);
+        }
+      });
+    }
+    
+    const result = textParts.join(' ').trim();
+    console.log(`📝 Readable text extraction found ${textParts.length} parts, ${result.length} characters`);
+    
+    return result;
+  } catch (error) {
+    console.warn('Readable text extraction failed:', error);
+    return '';
+  }
+}
+
+/**
+ * Method 2: Extract XML patterns from DOCX
+ */
+function extractXMLPatternsFromDOCX(data: Uint8Array): string {
+  try {
+    console.log('📄 Extracting XML patterns...');
+    
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
+    const textParts: string[] = [];
+    
+    // Look for Word XML text elements
+    const xmlPatterns = [
+      /<w:t[^>]*?>(.*?)<\/w:t>/gs,
+      /<w:p[^>]*?>(.*?)<\/w:p>/gs,
+      /<text[^>]*?>(.*?)<\/text>/gs
+    ];
+    
+    xmlPatterns.forEach(pattern => {
+      const matches = text.match(pattern);
       if (matches) {
         matches.forEach(match => {
-          const cleaned = match.replace(/[^\w\s.,;:!?()\-]/g, ' ').replace(/\s+/g, ' ').trim();
-          if (cleaned.length > 15) {
-            textParts.push(cleaned);
+          // Extract text content from XML
+          let content = match
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/</g, '<')
+            .replace(/>/g, '>')
+            .replace(/&/g, '&')
+            .replace(/"/g, '"')
+            .replace(/&apos;/g, "'")
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          if (content.length > 10 && /[a-zA-Z]{3,}/.test(content)) {
+            textParts.push(content);
           }
         });
       }
     });
     
-    if (textParts.length > 0) {
-      const result = textParts.join(' ').trim();
-      console.log(`🔍 Binary pattern extraction found ${textParts.length} text parts`);
-      return result;
-    }
+    const result = textParts.join(' ').trim();
+    console.log(`📄 XML pattern extraction found ${textParts.length} parts, ${result.length} characters`);
     
-    return '';
+    return result;
   } catch (error) {
-    console.warn('Binary pattern extraction failed:', error);
+    console.warn('XML pattern extraction failed:', error);
     return '';
   }
 }
 
 /**
- * Method 4: Comprehensive text extraction (last resort)
+ * Method 3: Comprehensive text search
  */
-async function tryComprehensiveExtraction(data: Uint8Array): Promise<string> {
+function extractComprehensiveTextFromDOCX(data: Uint8Array): string {
   try {
-    console.log('🔧 Attempting comprehensive extraction...');
+    console.log('🔍 Comprehensive text search...');
     
-    // Try multiple encoding approaches
-    const encodings = ['utf-8', 'utf-16le', 'utf-16be', 'latin1'];
-    const textParts: string[] = [];
+    // Try different encodings
+    const encodings = ['utf-8', 'utf-16le', 'latin1'];
+    const allTextParts: string[] = [];
     
     for (const encoding of encodings) {
       try {
         const text = new TextDecoder(encoding, { fatal: false }).decode(data);
         
-        // Extract any readable text sequences
-        const readableMatches = text.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()\-]{20,}/g);
-        if (readableMatches) {
-          readableMatches.forEach(match => {
-            const cleaned = match
-              .replace(/[^\x20-\x7E\s]/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim();
-            
-            if (cleaned.length > 20 && /[a-zA-Z]{3,}/.test(cleaned)) {
-              textParts.push(cleaned);
-            }
-          });
-        }
+        // Look for common CV sections and content
+        const cvSectionPatterns = [
+          /(?:experience|employment|work history|career)[^.!?]*[.!?]/gi,
+          /(?:education|qualifications|academic)[^.!?]*[.!?]/gi,
+          /(?:skills|competencies|expertise)[^.!?]*[.!?]/gi,
+          /(?:summary|objective|profile)[^.!?]*[.!?]/gi,
+          /(?:university|college|degree|bachelor|master|phd)[^.!?]*[.!?]/gi,
+          /(?:company|corporation|inc|ltd|technologies|solutions)[^.!?]*[.!?]/gi,
+          /(?:developer|engineer|manager|analyst|consultant|specialist)[^.!?]*[.!?]/gi
+        ];
         
-        if (textParts.length > 5) break; // Found enough content
+        cvSectionPatterns.forEach(pattern => {
+          const matches = text.match(pattern);
+          if (matches) {
+            matches.forEach(match => {
+              const cleaned = match
+                .replace(/[^\w\s.,;:!?()\-'"/]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              if (cleaned.length > 20) {
+                allTextParts.push(cleaned);
+              }
+            });
+          }
+        });
+        
+        // Also look for structured data like names, emails, phones
+        const structuredPatterns = [
+          /[A-Z][a-z]+ [A-Z][a-z]+(?:\s+[A-Z][a-z]+)?/g, // Names
+          /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, // Emails
+          /[\+]?[1-9]?[\d\s\-\(\)]{10,}/g, // Phone numbers
+          /\b(19|20)\d{2}\b/g // Years
+        ];
+        
+        structuredPatterns.forEach(pattern => {
+          const matches = text.match(pattern);
+          if (matches) {
+            matches.forEach(match => {
+              const cleaned = match.trim();
+              if (cleaned.length > 3) {
+                allTextParts.push(cleaned);
+              }
+            });
+          }
+        });
+        
       } catch (e) {
         continue;
       }
     }
     
-    // Look for common resume/CV patterns
-    const cvPatterns = [
-      /\b(?:experience|education|skills|qualifications|employment|career|background|summary|objective)\b[^.!?]*[.!?]/gi,
-      /\b(?:university|college|degree|bachelor|master|phd|certification)\b[^.!?]*[.!?]/gi,
-      /\b(?:company|corporation|inc|ltd|llc|technologies|solutions|systems)\b[^.!?]*[.!?]/gi,
-      /\b(?:developer|engineer|manager|analyst|consultant|specialist|director)\b[^.!?]*[.!?]/gi
-    ];
+    // Remove duplicates and combine
+    const uniqueParts = [...new Set(allTextParts)];
+    const result = uniqueParts.join(' ').trim();
     
-    const allText = textParts.join(' ');
-    const cvMatches: string[] = [];
+    console.log(`🔍 Comprehensive search found ${uniqueParts.length} unique parts, ${result.length} characters`);
     
-    cvPatterns.forEach(pattern => {
-      const matches = allText.match(pattern);
-      if (matches) {
-        cvMatches.push(...matches);
-      }
-    });
-    
-    if (cvMatches.length > 0) {
-      const result = cvMatches.join(' ').trim();
-      console.log(`🔧 Comprehensive extraction found ${cvMatches.length} CV-related patterns`);
-      return result;
-    }
-    
-    // If we have any text parts, return them
-    if (textParts.length > 0) {
-      const result = textParts.slice(0, 20).join(' ').trim(); // Limit to first 20 parts
-      console.log(`🔧 Comprehensive extraction found ${textParts.length} text parts`);
-      return result;
-    }
-    
-    return '';
+    return result;
   } catch (error) {
-    console.warn('Comprehensive extraction failed:', error);
+    console.warn('Comprehensive text search failed:', error);
     return '';
   }
 }
 
 /**
- * Extract text from Word XML content
+ * Clean up extracted DOCX text
  */
-function extractTextFromWordXML(xmlContent: string): string {
-  const textParts: string[] = [];
-  
-  try {
-    // Method 1: Extract from w:t elements (Word text elements)
-    const textElementRegex = /<w:t[^>]*?>(.*?)<\/w:t>/gs;
-    let match;
-    
-    while ((match = textElementRegex.exec(xmlContent)) !== null) {
-      let textContent = match[1];
-      
-      // Decode XML entities
-      textContent = textContent
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'");
-      
-      if (textContent.trim().length > 0) {
-        textParts.push(textContent.trim());
-      }
-    }
-    
-    console.log(`📝 Extracted ${textParts.length} text elements from w:t tags`);
-    
-    // Method 2: If not enough content, try extracting from paragraph structure
-    if (textParts.length < 5) {
-      console.log('🔄 Trying paragraph extraction...');
-      
-      const paragraphRegex = /<w:p[^>]*?>(.*?)<\/w:p>/gs;
-      const paragraphParts: string[] = [];
-      
-      while ((match = paragraphRegex.exec(xmlContent)) !== null) {
-        const paraContent = match[1];
-        
-        // Remove XML tags and extract text
-        const cleanContent = paraContent
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&amp;/g, '&')
-          .replace(/&quot;/g, '"')
-          .replace(/&apos;/g, "'")
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        if (cleanContent.length > 3 && /[a-zA-Z]/.test(cleanContent)) {
-          paragraphParts.push(cleanContent);
-        }
-      }
-      
-      if (paragraphParts.length > textParts.length) {
-        textParts.length = 0;
-        textParts.push(...paragraphParts);
-      }
-    }
-    
-    // Method 3: If still not enough, extract any readable text
-    if (textParts.length < 3) {
-      console.log('🔄 Trying general text extraction...');
-      
-      // Remove all XML tags and extract readable text
-      const cleanText = xmlContent
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/&[a-zA-Z0-9#]+;/g, ' ')
-        .replace(/[^\x20-\x7E\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      const words = cleanText.split(' ').filter(word => 
-        word.length > 2 && /[a-zA-Z]/.test(word)
-      );
-      
-      if (words.length > 10) {
-        textParts.length = 0;
-        textParts.push(words.join(' '));
-      }
-    }
-    
-    // Combine all text parts
-    const extractedText = textParts.join(' ').trim();
-    
-    console.log(`📝 XML extraction result: ${extractedText.length} characters`);
-    
-    return extractedText;
-    
-  } catch (error) {
-    console.error('Error extracting text from XML:', error);
-    return '';
-  }
-}
-
-/**
- * Clean up extracted text
- */
-function cleanupExtractedText(text: string): string {
+function cleanupDOCXText(text: string): string {
   return text
     .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-    .replace(/[^\x20-\x7E\s]/g, ' ') // Remove non-printable characters
+    .replace(/[^\x20-\x7E\s]/g, ' ') // Remove non-printable characters except spaces
     .replace(/\s+/g, ' ') // Clean up spaces again
+    .replace(/\s*([.,;:!?])\s*/g, '$1 ') // Fix punctuation spacing
     .trim();
 }
 

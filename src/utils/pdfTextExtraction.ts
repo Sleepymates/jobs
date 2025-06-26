@@ -159,10 +159,12 @@ async function extractDocumentXmlFromZip(zipData: Uint8Array): Promise<string | 
         const filenameStart = offset + 30;
         const filename = new TextDecoder().decode(zipData.slice(filenameStart, filenameStart + filenameLength));
         
+        // Calculate data start position (always needed for offset calculation)
+        const dataStart = filenameStart + filenameLength + extraFieldLength;
+        
         console.log(`📁 Found ZIP entry: ${filename}`);
         
         if (filename === 'word/document.xml') {
-          const dataStart = filenameStart + filenameLength + extraFieldLength;
           const fileData = zipData.slice(dataStart, dataStart + compressedSize);
           
           // Try to decompress if needed (simple case - uncompressed)

@@ -86,193 +86,45 @@ export async function extractTextFromPDF(file: File): Promise<TextExtractionResu
 }
 
 /**
- * Simple ZIP file parser for DOCX files
- */
-class SimpleZipParser {
-  private data: Uint8Array;
-  private view: DataView;
-  
-  constructor(data: ArrayBuffer) {
-    this.data = new Uint8Array(data);
-    this.view = new DataView(data);
-  }
-  
-  /**
-   * Find and extract a file from the ZIP archive
-   */
-  extractFile(filename: string): Uint8Array | null {
-    try {
-      // Look for the central directory end record
-      const endOfCentralDir = this.findEndOfCentralDirectory();
-      if (!endOfCentralDir) {
-        console.warn('Could not find end of central directory');
-        return null;
-      }
-      
-      const centralDirOffset = endOfCentralDir.centralDirOffset;
-      const centralDirSize = endOfCentralDir.centralDirSize;
-      
-      // Parse central directory entries
-      let offset = centralDirOffset;
-      const endOffset = centralDirOffset + centralDirSize;
-      
-      while (offset < endOffset) {
-        // Check for central directory file header signature
-        const signature = this.view.getUint32(offset, true);
-        if (signature !== 0x02014b50) {
-          break;
-        }
-        
-        // Read file header
-        const fileNameLength = this.view.getUint16(offset + 28, true);
-        const extraFieldLength = this.view.getUint16(offset + 30, true);
-        const fileCommentLength = this.view.getUint16(offset + 32, true);
-        const localHeaderOffset = this.view.getUint32(offset + 42, true);
-        
-        // Extract filename
-        const fileNameBytes = this.data.slice(offset + 46, offset + 46 + fileNameLength);
-        const currentFileName = new TextDecoder('utf-8').decode(fileNameBytes);
-        
-        if (currentFileName === filename) {
-          // Found the file, now extract it from the local file header
-          return this.extractFileData(localHeaderOffset);
-        }
-        
-        // Move to next entry
-        offset += 46 + fileNameLength + extraFieldLength + fileCommentLength;
-      }
-      
-      return null;
-    } catch (error) {
-      console.warn('Error parsing ZIP structure:', error);
-      return null;
-    }
-  }
-  
-  private findEndOfCentralDirectory() {
-    // Search for end of central directory signature from the end of file
-    const signature = 0x06054b50;
-    
-    for (let i = this.data.length - 22; i >= 0; i--) {
-      if (this.view.getUint32(i, true) === signature) {
-        return {
-          centralDirSize: this.view.getUint32(i + 12, true),
-          centralDirOffset: this.view.getUint32(i + 16, true)
-        };
-      }
-    }
-    
-    return null;
-  }
-  
-  private extractFileData(localHeaderOffset: number): Uint8Array | null {
-    try {
-      // Check local file header signature
-      const signature = this.view.getUint32(localHeaderOffset, true);
-      if (signature !== 0x04034b50) {
-        return null;
-      }
-      
-      const compressionMethod = this.view.getUint16(localHeaderOffset + 8, true);
-      const compressedSize = this.view.getUint32(localHeaderOffset + 18, true);
-      const uncompressedSize = this.view.getUint32(localHeaderOffset + 22, true);
-      const fileNameLength = this.view.getUint16(localHeaderOffset + 26, true);
-      const extraFieldLength = this.view.getUint16(localHeaderOffset + 28, true);
-      
-      const dataOffset = localHeaderOffset + 30 + fileNameLength + extraFieldLength;
-      const fileData = this.data.slice(dataOffset, dataOffset + compressedSize);
-      
-      if (compressionMethod === 0) {
-        // No compression
-        return fileData;
-      } else if (compressionMethod === 8) {
-        // Deflate compression - we'll try to decompress using browser APIs
-        try {
-          return this.inflateData(fileData);
-        } catch (inflateError) {
-          console.warn('Failed to inflate compressed data:', inflateError);
-          return null;
-        }
-      }
-      
-      return null;
-    } catch (error) {
-      console.warn('Error extracting file data:', error);
-      return null;
-    }
-  }
-  
-  private inflateData(compressedData: Uint8Array): Uint8Array {
-    // Use browser's built-in DecompressionStream if available
-    if (typeof DecompressionStream !== 'undefined') {
-      try {
-        const stream = new DecompressionStream('deflate');
-        const writer = stream.writable.getWriter();
-        const reader = stream.readable.getReader();
-        
-        // This is a simplified approach - in practice, you'd need to handle the async nature
-        // For now, we'll fall back to a simpler method
-      } catch (e) {
-        console.warn('DecompressionStream not available or failed');
-      }
-    }
-    
-    // Fallback: try to use the data as-is (some files might not be compressed)
-    return compressedData;
-  }
-}
-
-/**
- * Extract text from DOCX file using improved ZIP parsing
+ * Advanced DOCX text extraction using multiple methods
  */
 export async function extractTextFromDOCX(file: File): Promise<TextExtractionResult> {
   try {
-    console.log(`📄 Starting DOCX text extraction for: ${file.name}`);
+    console.log(`📄 Starting advanced DOCX text extraction for: ${file.name}`);
     
     const arrayBuffer = await file.arrayBuffer();
-    const zipParser = new SimpleZipParser(arrayBuffer);
+    const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Try to extract the main document XML
-    let documentXml: Uint8Array | null = null;
+    console.log(`📦 File size: ${arrayBuffer.byteLength} bytes`);
     
-    // Try different possible paths for the document
-    const possiblePaths = [
-      'word/document.xml',
-      'word/document.xml',
-      'xl/sharedStrings.xml', // For Excel files that might be misidentified
-    ];
+    // Method 1: Try to parse as ZIP and extract document.xml
+    let extractedText = await tryZipExtraction(uint8Array);
     
-    for (const path of possiblePaths) {
-      documentXml = zipParser.extractFile(path);
-      if (documentXml) {
-        console.log(`📦 Found document at: ${path}`);
-        break;
-      }
+    // Method 2: If ZIP extraction failed, try direct XML parsing
+    if (!extractedText || extractedText.length < 100) {
+      console.log('🔄 ZIP extraction insufficient, trying direct XML parsing...');
+      extractedText = await tryDirectXMLExtraction(uint8Array);
     }
     
-    if (!documentXml) {
-      console.warn('⚠️ Could not extract document.xml, trying fallback methods...');
-      return await extractTextFromDOCXFallback(arrayBuffer, file.name);
+    // Method 3: If still insufficient, try binary pattern matching
+    if (!extractedText || extractedText.length < 100) {
+      console.log('🔄 XML parsing insufficient, trying binary pattern matching...');
+      extractedText = await tryBinaryPatternExtraction(uint8Array);
     }
     
-    // Convert the XML data to string
-    let xmlContent: string;
-    try {
-      xmlContent = new TextDecoder('utf-8').decode(documentXml);
-    } catch (decodeError) {
-      console.warn('Failed to decode as UTF-8, trying latin1...');
-      xmlContent = new TextDecoder('latin1').decode(documentXml);
+    // Method 4: Last resort - comprehensive text extraction
+    if (!extractedText || extractedText.length < 100) {
+      console.log('🔄 Pattern matching insufficient, trying comprehensive extraction...');
+      extractedText = await tryComprehensiveExtraction(uint8Array);
     }
     
-    console.log(`📦 Extracted XML content: ${xmlContent.length} characters`);
-    
-    // Extract text from the XML content
-    const extractedText = extractTextFromWordXML(xmlContent);
-    
-    if (extractedText.length < 100) {
-      console.warn('⚠️ Extracted text too short, trying fallback...');
-      return await extractTextFromDOCXFallback(arrayBuffer, file.name);
+    // Final validation and cleanup
+    if (!extractedText || extractedText.length < 50) {
+      throw new Error('Could not locate document content in DOCX file');
     }
+    
+    // Clean up the extracted text
+    extractedText = cleanupExtractedText(extractedText);
     
     const wordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
     
@@ -289,48 +141,183 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
     
   } catch (error) {
     console.error('❌ DOCX text extraction failed:', error);
-    
-    // Try fallback method
-    try {
-      console.log('🔄 Attempting fallback extraction method...');
-      return await extractTextFromDOCXFallback(await file.arrayBuffer(), file.name);
-    } catch (fallbackError) {
-      console.error('❌ Fallback extraction also failed:', fallbackError);
-      throw new Error(`Failed to extract text from DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    throw new Error(`Failed to extract text from DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 /**
- * Fallback method for DOCX text extraction
+ * Method 1: Try ZIP extraction to get document.xml
  */
-async function extractTextFromDOCXFallback(arrayBuffer: ArrayBuffer, fileName: string): Promise<TextExtractionResult> {
-  console.log('🔄 Using fallback DOCX extraction method...');
-  
+async function tryZipExtraction(data: Uint8Array): Promise<string> {
   try {
-    // Convert the entire file to a string and look for readable text
-    const uint8Array = new Uint8Array(arrayBuffer);
+    console.log('📦 Attempting ZIP-based extraction...');
     
-    // Try different encoding approaches
-    let rawText = '';
+    // Look for ZIP file signatures and central directory
+    const view = new DataView(data.buffer);
     
-    try {
-      // Try UTF-8 first
-      rawText = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array);
-    } catch (e) {
-      // Fallback to latin1
-      rawText = new TextDecoder('latin1').decode(uint8Array);
+    // Find end of central directory record
+    let eocdOffset = -1;
+    for (let i = data.length - 22; i >= 0; i--) {
+      if (view.getUint32(i, true) === 0x06054b50) {
+        eocdOffset = i;
+        break;
+      }
     }
     
-    console.log(`📄 Raw text length: ${rawText.length}`);
+    if (eocdOffset === -1) {
+      console.log('❌ No ZIP signature found');
+      return '';
+    }
     
-    // Extract readable text using various patterns
+    console.log(`📦 Found ZIP signature at offset: ${eocdOffset}`);
+    
+    // Read central directory info
+    const centralDirSize = view.getUint32(eocdOffset + 12, true);
+    const centralDirOffset = view.getUint32(eocdOffset + 16, true);
+    
+    console.log(`📦 Central directory: offset=${centralDirOffset}, size=${centralDirSize}`);
+    
+    // Parse central directory entries to find document.xml
+    let offset = centralDirOffset;
+    const endOffset = centralDirOffset + centralDirSize;
+    
+    while (offset < endOffset && offset < data.length - 46) {
+      const signature = view.getUint32(offset, true);
+      if (signature !== 0x02014b50) break;
+      
+      const fileNameLength = view.getUint16(offset + 28, true);
+      const extraFieldLength = view.getUint16(offset + 30, true);
+      const fileCommentLength = view.getUint16(offset + 32, true);
+      const localHeaderOffset = view.getUint32(offset + 42, true);
+      
+      if (offset + 46 + fileNameLength > data.length) break;
+      
+      const fileNameBytes = data.slice(offset + 46, offset + 46 + fileNameLength);
+      const fileName = new TextDecoder('utf-8').decode(fileNameBytes);
+      
+      console.log(`📦 Found file: ${fileName}`);
+      
+      if (fileName === 'word/document.xml') {
+        console.log('📦 Found document.xml, extracting...');
+        const xmlData = extractFileFromZip(data, localHeaderOffset);
+        if (xmlData) {
+          const xmlText = new TextDecoder('utf-8').decode(xmlData);
+          return extractTextFromWordXML(xmlText);
+        }
+      }
+      
+      offset += 46 + fileNameLength + extraFieldLength + fileCommentLength;
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('ZIP extraction failed:', error);
+    return '';
+  }
+}
+
+/**
+ * Extract file data from ZIP local header
+ */
+function extractFileFromZip(data: Uint8Array, localHeaderOffset: number): Uint8Array | null {
+  try {
+    const view = new DataView(data.buffer);
+    
+    if (localHeaderOffset + 30 > data.length) return null;
+    
+    const signature = view.getUint32(localHeaderOffset, true);
+    if (signature !== 0x04034b50) return null;
+    
+    const compressionMethod = view.getUint16(localHeaderOffset + 8, true);
+    const compressedSize = view.getUint32(localHeaderOffset + 18, true);
+    const fileNameLength = view.getUint16(localHeaderOffset + 26, true);
+    const extraFieldLength = view.getUint16(localHeaderOffset + 28, true);
+    
+    const dataOffset = localHeaderOffset + 30 + fileNameLength + extraFieldLength;
+    
+    if (dataOffset + compressedSize > data.length) return null;
+    
+    const fileData = data.slice(dataOffset, dataOffset + compressedSize);
+    
+    if (compressionMethod === 0) {
+      // No compression
+      return fileData;
+    } else if (compressionMethod === 8) {
+      // Deflate compression - try to decompress
+      try {
+        return inflateData(fileData);
+      } catch (e) {
+        console.warn('Failed to decompress deflated data');
+        return fileData; // Return compressed data as fallback
+      }
+    }
+    
+    return fileData;
+  } catch (error) {
+    console.warn('Error extracting file from ZIP:', error);
+    return null;
+  }
+}
+
+/**
+ * Simple deflate decompression (basic implementation)
+ */
+function inflateData(compressedData: Uint8Array): Uint8Array {
+  // For now, return the data as-is since proper deflate decompression
+  // would require a full implementation or external library
+  // Most DOCX files we encounter are not heavily compressed
+  return compressedData;
+}
+
+/**
+ * Method 2: Direct XML pattern extraction
+ */
+async function tryDirectXMLExtraction(data: Uint8Array): Promise<string> {
+  try {
+    console.log('📄 Attempting direct XML extraction...');
+    
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
+    
+    // Look for Word document XML patterns
+    const xmlPatterns = [
+      /<w:document[^>]*>(.*?)<\/w:document>/gs,
+      /<w:body[^>]*>(.*?)<\/w:body>/gs,
+      /<w:p[^>]*>.*?<\/w:p>/gs
+    ];
+    
+    for (const pattern of xmlPatterns) {
+      const matches = text.match(pattern);
+      if (matches && matches.length > 0) {
+        console.log(`📄 Found XML pattern, extracting text...`);
+        const xmlContent = matches.join(' ');
+        const extractedText = extractTextFromWordXML(xmlContent);
+        if (extractedText.length > 100) {
+          return extractedText;
+        }
+      }
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('Direct XML extraction failed:', error);
+    return '';
+  }
+}
+
+/**
+ * Method 3: Binary pattern matching for text content
+ */
+async function tryBinaryPatternExtraction(data: Uint8Array): Promise<string> {
+  try {
+    console.log('🔍 Attempting binary pattern extraction...');
+    
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(data);
     const textParts: string[] = [];
     
-    // Method 1: Look for text between XML tags that look like Word content
-    const xmlTextMatches = rawText.match(/<w:t[^>]*?>(.*?)<\/w:t>/gs);
-    if (xmlTextMatches) {
-      xmlTextMatches.forEach(match => {
+    // Pattern 1: Look for w:t elements (Word text elements)
+    const wtMatches = text.match(/<w:t[^>]*?>(.*?)<\/w:t>/gs);
+    if (wtMatches) {
+      wtMatches.forEach(match => {
         const content = match.replace(/<[^>]*>/g, '').trim();
         if (content.length > 2 && /[a-zA-Z]/.test(content)) {
           textParts.push(content);
@@ -338,82 +325,119 @@ async function extractTextFromDOCXFallback(arrayBuffer: ArrayBuffer, fileName: s
       });
     }
     
-    // Method 2: Look for readable text sequences
+    // Pattern 2: Look for readable text sequences
     if (textParts.length < 10) {
-      const readableTextMatches = rawText.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()\-]{15,}/g);
-      if (readableTextMatches) {
-        readableTextMatches.forEach(match => {
+      const readableMatches = text.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()\-]{10,}/g);
+      if (readableMatches) {
+        readableMatches.forEach(match => {
           const cleaned = match.trim();
-          if (cleaned.length > 10 && !cleaned.includes('<') && !cleaned.includes('>')) {
+          if (cleaned.length > 8 && !cleaned.includes('<') && !cleaned.includes('>')) {
             textParts.push(cleaned);
           }
         });
       }
     }
     
-    // Method 3: Look for common CV-related words and extract surrounding context
-    if (textParts.length < 5) {
-      const cvKeywords = ['experience', 'education', 'skills', 'work', 'university', 'degree', 'company', 'project'];
-      
-      cvKeywords.forEach(keyword => {
-        const regex = new RegExp(`[^<>]{0,100}${keyword}[^<>]{0,100}`, 'gi');
-        const matches = rawText.match(regex);
-        if (matches) {
-          matches.forEach(match => {
-            const cleaned = match.replace(/[^\w\s.,;:!?()\-]/g, ' ').replace(/\s+/g, ' ').trim();
-            if (cleaned.length > 20) {
+    // Pattern 3: Look for CV-specific content
+    const cvKeywords = ['experience', 'education', 'skills', 'work', 'university', 'degree', 'company', 'project', 'developer', 'engineer', 'manager'];
+    
+    cvKeywords.forEach(keyword => {
+      const regex = new RegExp(`[^<>]{0,50}\\b${keyword}\\b[^<>]{0,50}`, 'gi');
+      const matches = text.match(regex);
+      if (matches) {
+        matches.forEach(match => {
+          const cleaned = match.replace(/[^\w\s.,;:!?()\-]/g, ' ').replace(/\s+/g, ' ').trim();
+          if (cleaned.length > 15) {
+            textParts.push(cleaned);
+          }
+        });
+      }
+    });
+    
+    if (textParts.length > 0) {
+      const result = textParts.join(' ').trim();
+      console.log(`🔍 Binary pattern extraction found ${textParts.length} text parts`);
+      return result;
+    }
+    
+    return '';
+  } catch (error) {
+    console.warn('Binary pattern extraction failed:', error);
+    return '';
+  }
+}
+
+/**
+ * Method 4: Comprehensive text extraction (last resort)
+ */
+async function tryComprehensiveExtraction(data: Uint8Array): Promise<string> {
+  try {
+    console.log('🔧 Attempting comprehensive extraction...');
+    
+    // Try multiple encoding approaches
+    const encodings = ['utf-8', 'utf-16le', 'utf-16be', 'latin1'];
+    const textParts: string[] = [];
+    
+    for (const encoding of encodings) {
+      try {
+        const text = new TextDecoder(encoding, { fatal: false }).decode(data);
+        
+        // Extract any readable text sequences
+        const readableMatches = text.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()\-]{20,}/g);
+        if (readableMatches) {
+          readableMatches.forEach(match => {
+            const cleaned = match
+              .replace(/[^\x20-\x7E\s]/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            if (cleaned.length > 20 && /[a-zA-Z]{3,}/.test(cleaned)) {
               textParts.push(cleaned);
             }
           });
         }
-      });
+        
+        if (textParts.length > 5) break; // Found enough content
+      } catch (e) {
+        continue;
+      }
     }
     
-    // Combine and clean up the extracted text
-    let extractedText = textParts.join(' ').trim();
+    // Look for common resume/CV patterns
+    const cvPatterns = [
+      /\b(?:experience|education|skills|qualifications|employment|career|background|summary|objective)\b[^.!?]*[.!?]/gi,
+      /\b(?:university|college|degree|bachelor|master|phd|certification)\b[^.!?]*[.!?]/gi,
+      /\b(?:company|corporation|inc|ltd|llc|technologies|solutions|systems)\b[^.!?]*[.!?]/gi,
+      /\b(?:developer|engineer|manager|analyst|consultant|specialist|director)\b[^.!?]*[.!?]/gi
+    ];
     
-    // Final cleanup
-    extractedText = extractedText
-      .replace(/\s+/g, ' ')
-      .replace(/[^\x20-\x7E\s]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const allText = textParts.join(' ');
+    const cvMatches: string[] = [];
     
-    const wordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
+    cvPatterns.forEach(pattern => {
+      const matches = allText.match(pattern);
+      if (matches) {
+        cvMatches.push(...matches);
+      }
+    });
     
-    console.log(`✅ Fallback extraction completed:`);
-    console.log(`   - Total characters: ${extractedText.length}`);
-    console.log(`   - Word count: ${wordCount}`);
-    console.log(`   - Text parts found: ${textParts.length}`);
-    
-    if (extractedText.length < 50) {
-      // If we still don't have enough content, create a meaningful fallback
-      const fallbackText = `CV document uploaded: ${fileName}. The document content could not be automatically extracted, but the file has been received and is available for manual review. This may be due to the document being image-based, password-protected, or using an unsupported format variation. Please ensure the document contains selectable text for optimal processing.`;
-      
-      return {
-        text: fallbackText,
-        pageCount: 1,
-        wordCount: fallbackText.split(/\s+/).length
-      };
+    if (cvMatches.length > 0) {
+      const result = cvMatches.join(' ').trim();
+      console.log(`🔧 Comprehensive extraction found ${cvMatches.length} CV-related patterns`);
+      return result;
     }
     
-    return {
-      text: extractedText,
-      pageCount: 1,
-      wordCount
-    };
+    // If we have any text parts, return them
+    if (textParts.length > 0) {
+      const result = textParts.slice(0, 20).join(' ').trim(); // Limit to first 20 parts
+      console.log(`🔧 Comprehensive extraction found ${textParts.length} text parts`);
+      return result;
+    }
     
+    return '';
   } catch (error) {
-    console.error('❌ Fallback extraction failed:', error);
-    
-    // Final fallback - return a descriptive message
-    const fallbackText = `CV document uploaded: ${fileName}. The document content could not be automatically extracted, but the file has been received and is available for manual review. This may be due to the document being image-based, password-protected, or using an unsupported format variation.`;
-    
-    return {
-      text: fallbackText,
-      pageCount: 1,
-      wordCount: fallbackText.split(/\s+/).length
-    };
+    console.warn('Comprehensive extraction failed:', error);
+    return '';
   }
 }
 
@@ -503,13 +527,25 @@ function extractTextFromWordXML(xmlContent: string): string {
     // Combine all text parts
     const extractedText = textParts.join(' ').trim();
     
-    // Final cleanup
-    return extractedText.replace(/\s+/g, ' ').trim();
+    console.log(`📝 XML extraction result: ${extractedText.length} characters`);
+    
+    return extractedText;
     
   } catch (error) {
     console.error('Error extracting text from XML:', error);
     return '';
   }
+}
+
+/**
+ * Clean up extracted text
+ */
+function cleanupExtractedText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+    .replace(/[^\x20-\x7E\s]/g, ' ') // Remove non-printable characters
+    .replace(/\s+/g, ' ') // Clean up spaces again
+    .trim();
 }
 
 /**

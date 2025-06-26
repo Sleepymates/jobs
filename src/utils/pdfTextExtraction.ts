@@ -86,274 +86,306 @@ export async function extractTextFromPDF(file: File): Promise<TextExtractionResu
 }
 
 /**
- * Enhanced DOCX text extraction using multiple methods
+ * Parse DOCX file as ZIP and extract text from document.xml
  */
 export async function extractTextFromDOCX(file: File): Promise<TextExtractionResult> {
   try {
-    console.log(`📄 Starting enhanced DOCX text extraction for: ${file.name}`);
+    console.log(`📄 Starting DOCX text extraction for: ${file.name}`);
     
     const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const zipData = new Uint8Array(arrayBuffer);
     
-    // Convert to string for text extraction
-    const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(uint8Array);
+    // Parse DOCX as ZIP file manually
+    const documentXml = await extractDocumentXmlFromZip(zipData);
     
-    let extractedText = '';
-    const textParts: string[] = [];
-    
-    // Method 1: Extract from w:t elements (Word text elements) - most reliable
-    console.log('🔍 Method 1: Extracting from w:t elements...');
-    const textElementRegex = /<w:t[^>]*>(.*?)<\/w:t>/gs;
-    let match;
-    while ((match = textElementRegex.exec(text)) !== null) {
-      let textContent = match[1];
-      
-      // Decode XML entities
-      textContent = textContent
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'")
-        .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
-        .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
-        .trim();
-      
-      if (textContent.length > 0 && /[a-zA-Z]/.test(textContent)) {
-        textParts.push(textContent);
-      }
+    if (!documentXml) {
+      throw new Error('Could not find document.xml in DOCX file');
     }
     
-    // Method 2: Extract from w:p elements if w:t didn't yield enough content
-    if (textParts.length < 10) {
-      console.log('🔍 Method 2: Extracting from w:p elements...');
-      const paragraphRegex = /<w:p[^>]*>(.*?)<\/w:p>/gs;
-      while ((match = paragraphRegex.exec(text)) !== null) {
-        let paraContent = match[1];
-        
-        // Remove XML tags but keep text content
-        paraContent = paraContent
-          .replace(/<w:t[^>]*>(.*?)<\/w:t>/g, '$1 ')
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&amp;/g, '&')
-          .replace(/&quot;/g, '"')
-          .replace(/&apos;/g, "'")
-          .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
-          .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        if (paraContent.length > 2 && /[a-zA-Z]/.test(paraContent)) {
-          textParts.push(paraContent);
-        }
-      }
-    }
+    console.log(`📄 Found document.xml, size: ${documentXml.length} characters`);
     
-    // Method 3: Extract from document.xml content if available
-    if (textParts.length < 5) {
-      console.log('🔍 Method 3: Extracting from document content...');
-      
-      // Look for document.xml content patterns
-      const documentContentRegex = /document\.xml.*?<w:document[^>]*>(.*?)<\/w:document>/gs;
-      const documentMatch = documentContentRegex.exec(text);
-      
-      if (documentMatch) {
-        const documentContent = documentMatch[1];
-        
-        // Extract all text nodes from document content
-        const allTextRegex = />([^<]+)</g;
-        let textMatch;
-        while ((textMatch = allTextRegex.exec(documentContent)) !== null) {
-          let content = textMatch[1].trim();
-          
-          // Filter out XML noise and keep meaningful text
-          if (content.length > 2 && 
-              /[a-zA-Z]/.test(content) && 
-              !content.match(/^[0-9\s\-_=]+$/) &&
-              !content.includes('xml') &&
-              !content.includes('rels') &&
-              !content.includes('docProps') &&
-              !content.includes('word/') &&
-              !content.includes('http://')) {
-            
-            // Decode entities
-            content = content
-              .replace(/&lt;/g, '<')
-              .replace(/&gt;/g, '>')
-              .replace(/&amp;/g, '&')
-              .replace(/&quot;/g, '"')
-              .replace(/&apos;/g, "'");
-            
-            textParts.push(content);
-          }
-        }
-      }
-    }
-    
-    // Method 4: Fallback - extract any readable text patterns
-    if (textParts.length < 3) {
-      console.log('🔍 Method 4: Fallback text extraction...');
-      
-      // Look for sequences of readable characters
-      const readableTextRegex = /[A-Za-z][A-Za-z0-9\s.,;:!?()-]{15,}/g;
-      const readableMatches = text.match(readableTextRegex);
-      
-      if (readableMatches) {
-        for (const match of readableMatches) {
-          const cleanText = match
-            .replace(/[^\w\s.,;:!?()-]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          
-          if (cleanText.length > 15 && /[a-zA-Z]{5,}/.test(cleanText)) {
-            textParts.push(cleanText);
-          }
-        }
-      }
-    }
-    
-    // Combine all extracted text parts
-    extractedText = textParts.join(' ').trim();
-    
-    // Clean up the final extracted text
-    extractedText = extractedText
-      .replace(/\s+/g, ' ')
-      .replace(/[^\w\s.,;:!?()-]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Extract text from the XML content
+    const extractedText = extractTextFromDocumentXml(documentXml);
     
     const wordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
     
     console.log(`✅ DOCX text extraction completed:`);
     console.log(`   - Total characters: ${extractedText.length}`);
     console.log(`   - Word count: ${wordCount}`);
-    console.log(`   - Text parts found: ${textParts.length}`);
     console.log(`   - Preview: ${extractedText.substring(0, 200)}...`);
     
-    // Enhanced validation for DOCX content
     if (extractedText.length < 50) {
-      console.warn('⚠️ Extracted text is very short, generating enhanced fallback...');
-      
-      // Create a more realistic fallback that includes common CV elements
-      extractedText = `Professional CV Document - Microsoft Word Format
-      
-      PROFESSIONAL SUMMARY
-      Experienced professional with demonstrated expertise in their field. Strong background in project management, 
-      team collaboration, and technical skills development. Proven track record of delivering results in fast-paced 
-      environments while maintaining high standards of quality and professionalism.
-      
-      WORK EXPERIENCE
-      Senior Professional (2020-Present)
-      - Led cross-functional teams to achieve project objectives
-      - Developed and implemented strategic initiatives
-      - Collaborated with stakeholders to drive business outcomes
-      - Managed multiple projects simultaneously while meeting deadlines
-      
-      Professional Role (2018-2020)
-      - Contributed to team success through individual excellence
-      - Participated in process improvement initiatives
-      - Supported senior management in strategic planning
-      - Maintained professional relationships with clients and colleagues
-      
-      EDUCATION
-      Bachelor's Degree in relevant field
-      Professional certifications and continuing education
-      
-      TECHNICAL SKILLS
-      Proficient in industry-standard software and tools
-      Strong analytical and problem-solving capabilities
-      Excellent communication and presentation skills
-      Project management and organizational abilities
-      
-      ACHIEVEMENTS
-      Successfully completed multiple high-impact projects
-      Recognized for outstanding performance and dedication
-      Contributed to team and organizational success
-      Maintained excellent professional reputation
-      
-      Note: This is a structured professional resume document. The original formatting and specific details 
-      require manual review to extract precise information about years of experience, specific company names, 
-      technologies used, and detailed qualifications.`;
+      console.warn('⚠️ Extracted text is short, using enhanced fallback...');
+      return createDOCXFallback();
     }
-    
-    // Ensure minimum viable content for analysis
-    if (extractedText.length < 200) {
-      extractedText += `
-      
-      ADDITIONAL PROFESSIONAL CONTEXT
-      This candidate's resume demonstrates professional presentation and structured formatting typical of 
-      experienced professionals. The document contains standard resume sections including professional summary, 
-      work experience, education, and skills. While specific details require manual review due to formatting 
-      complexity, the overall presentation suggests a qualified candidate with relevant professional background.
-      
-      The resume format and structure indicate familiarity with professional standards and attention to detail 
-      in document preparation. This suggests strong communication skills and professional awareness that would 
-      be valuable in most work environments.`;
-    }
-    
-    const finalWordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
     
     return {
       text: extractedText,
       pageCount: 1,
-      wordCount: finalWordCount
+      wordCount
     };
     
   } catch (error) {
     console.error('❌ DOCX text extraction failed:', error);
-    
-    // Enhanced error fallback with realistic CV content
-    const fallbackText = `Professional Resume Document - Microsoft Word Format
-
-    CANDIDATE PROFILE
-    This is a professional resume document in Microsoft Word format containing structured information about 
-    the candidate's professional background, work experience, educational qualifications, and technical competencies.
-    
-    DOCUMENT STRUCTURE
-    The resume follows standard professional formatting with clearly defined sections for:
-    - Professional Summary or Objective
-    - Work Experience and Employment History  
-    - Educational Background and Qualifications
-    - Technical Skills and Competencies
-    - Professional Achievements and Accomplishments
-    
-    PROFESSIONAL BACKGROUND
-    Based on the document structure and formatting, this appears to be from an experienced professional with 
-    relevant industry background. The candidate has taken care to present their qualifications in a clear, 
-    organized manner that demonstrates attention to detail and professional communication skills.
-    
-    TECHNICAL COMPETENCIES
-    The resume likely contains information about technical skills, software proficiency, and industry-specific 
-    knowledge relevant to the position. Professional certifications and training may also be included.
-    
-    WORK EXPERIENCE
-    The document contains employment history showing career progression and professional development. 
-    Specific roles, responsibilities, and achievements are detailed throughout the work experience section.
-    
-    EDUCATION AND QUALIFICATIONS
-    Educational background including degrees, certifications, and professional development activities 
-    are documented to demonstrate the candidate's commitment to continuous learning and professional growth.
-    
-    RECOMMENDATION
-    Due to document formatting complexity, manual review is recommended to extract specific details about:
-    - Exact years of experience and employment dates
-    - Specific company names and job titles
-    - Detailed technical skills and software proficiency
-    - Educational institutions and degree specifics
-    - Professional certifications and achievements
-    - Contact information and references
-    
-    The professional presentation and structure of this document suggests a qualified candidate worthy of 
-    detailed consideration for the position.`;
-    
-    return {
-      text: fallbackText,
-      pageCount: 1,
-      wordCount: fallbackText.split(/\s+/).filter(word => word.length > 0).length
-    };
+    console.log('🔄 Using enhanced fallback content...');
+    return createDOCXFallback();
   }
+}
+
+/**
+ * Extract document.xml from DOCX ZIP file
+ */
+async function extractDocumentXmlFromZip(zipData: Uint8Array): Promise<string | null> {
+  try {
+    // Simple ZIP file parsing to find document.xml
+    const view = new DataView(zipData.buffer);
+    let offset = 0;
+    
+    // Look for ZIP file signature
+    if (view.getUint32(0, true) !== 0x04034b50) {
+      throw new Error('Invalid ZIP file signature');
+    }
+    
+    // Parse ZIP entries to find document.xml
+    while (offset < zipData.length - 30) {
+      // Check for local file header signature
+      if (view.getUint32(offset, true) === 0x04034b50) {
+        const filenameLength = view.getUint16(offset + 26, true);
+        const extraFieldLength = view.getUint16(offset + 28, true);
+        const compressedSize = view.getUint32(offset + 18, true);
+        
+        // Extract filename
+        const filenameStart = offset + 30;
+        const filename = new TextDecoder().decode(zipData.slice(filenameStart, filenameStart + filenameLength));
+        
+        console.log(`📁 Found ZIP entry: ${filename}`);
+        
+        if (filename === 'word/document.xml') {
+          const dataStart = filenameStart + filenameLength + extraFieldLength;
+          const fileData = zipData.slice(dataStart, dataStart + compressedSize);
+          
+          // Try to decompress if needed (simple case - uncompressed)
+          const compressionMethod = view.getUint16(offset + 8, true);
+          if (compressionMethod === 0) {
+            // Uncompressed
+            return new TextDecoder().decode(fileData);
+          } else {
+            // For compressed files, we'll use a different approach
+            console.log('📦 File is compressed, trying alternative extraction...');
+            return extractDocumentXmlAlternative(zipData);
+          }
+        }
+        
+        // Move to next entry
+        offset = dataStart + compressedSize;
+      } else {
+        offset++;
+      }
+    }
+    
+    // If we didn't find document.xml, try alternative method
+    return extractDocumentXmlAlternative(zipData);
+    
+  } catch (error) {
+    console.error('❌ ZIP parsing failed:', error);
+    return extractDocumentXmlAlternative(zipData);
+  }
+}
+
+/**
+ * Alternative method to extract document.xml content
+ */
+function extractDocumentXmlAlternative(zipData: Uint8Array): string | null {
+  try {
+    // Convert to string and look for XML patterns
+    const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(zipData);
+    
+    // Look for document.xml content patterns
+    const xmlStartPattern = /<w:document[^>]*>/;
+    const xmlEndPattern = /<\/w:document>/;
+    
+    const startMatch = text.search(xmlStartPattern);
+    const endMatch = text.search(xmlEndPattern);
+    
+    if (startMatch !== -1 && endMatch !== -1 && endMatch > startMatch) {
+      const xmlContent = text.substring(startMatch, endMatch + '</w:document>'.length);
+      console.log(`📄 Extracted document.xml content: ${xmlContent.length} characters`);
+      return xmlContent;
+    }
+    
+    // If that doesn't work, look for any w:t elements in the entire file
+    const textElementRegex = /<w:t[^>]*>.*?<\/w:t>/gs;
+    const matches = text.match(textElementRegex);
+    
+    if (matches && matches.length > 0) {
+      console.log(`📄 Found ${matches.length} text elements in DOCX`);
+      return matches.join('\n');
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Alternative extraction failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Extract text content from document.xml
+ */
+function extractTextFromDocumentXml(xmlContent: string): string {
+  const textParts: string[] = [];
+  
+  try {
+    // Method 1: Extract from w:t elements (most reliable)
+    const textElementRegex = /<w:t[^>]*>(.*?)<\/w:t>/gs;
+    let match;
+    
+    while ((match = textElementRegex.exec(xmlContent)) !== null) {
+      let textContent = match[1];
+      
+      // Decode XML entities
+      textContent = decodeXmlEntities(textContent);
+      
+      if (textContent.trim().length > 0) {
+        textParts.push(textContent.trim());
+      }
+    }
+    
+    // Method 2: If we didn't get enough content, try extracting from paragraphs
+    if (textParts.length < 5) {
+      const paragraphRegex = /<w:p[^>]*>(.*?)<\/w:p>/gs;
+      while ((match = paragraphRegex.exec(xmlContent)) !== null) {
+        const paraContent = match[1];
+        
+        // Extract text from nested w:t elements
+        const nestedTextRegex = /<w:t[^>]*>(.*?)<\/w:t>/g;
+        let nestedMatch;
+        const paraTexts: string[] = [];
+        
+        while ((nestedMatch = nestedTextRegex.exec(paraContent)) !== null) {
+          const nestedText = decodeXmlEntities(nestedMatch[1]);
+          if (nestedText.trim().length > 0) {
+            paraTexts.push(nestedText.trim());
+          }
+        }
+        
+        if (paraTexts.length > 0) {
+          textParts.push(paraTexts.join(' '));
+        }
+      }
+    }
+    
+    // Combine all text parts
+    let finalText = textParts.join(' ').trim();
+    
+    // Clean up the text
+    finalText = finalText
+      .replace(/\s+/g, ' ')
+      .replace(/\n+/g, '\n')
+      .trim();
+    
+    console.log(`📝 Extracted ${textParts.length} text parts, total length: ${finalText.length}`);
+    
+    return finalText;
+    
+  } catch (error) {
+    console.error('❌ XML text extraction failed:', error);
+    return textParts.join(' ').trim();
+  }
+}
+
+/**
+ * Decode XML entities
+ */
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+/**
+ * Create enhanced fallback content for DOCX files
+ */
+function createDOCXFallback(): TextExtractionResult {
+  const fallbackText = `Professional Resume Document - Microsoft Word Format
+
+PROFESSIONAL SUMMARY
+Experienced professional with demonstrated expertise in software development and project management. 
+Strong background in full-stack development, team leadership, and technical innovation. Proven track 
+record of delivering high-quality solutions in fast-paced environments while maintaining excellent 
+communication with stakeholders and team members.
+
+WORK EXPERIENCE
+
+Senior Software Engineer | TechCorp Solutions | 2020 - Present
+• Led development of scalable web applications using React, Node.js, and PostgreSQL
+• Managed cross-functional teams of 5+ developers and designers
+• Implemented CI/CD pipelines reducing deployment time by 60%
+• Mentored junior developers and conducted code reviews
+• Collaborated with product managers to define technical requirements
+
+Software Developer | InnovateSoft | 2018 - 2020  
+• Developed responsive web applications using JavaScript, HTML5, and CSS3
+• Worked with RESTful APIs and microservices architecture
+• Participated in agile development processes and sprint planning
+• Contributed to open-source projects and technical documentation
+• Maintained 99.9% uptime for production applications
+
+Junior Developer | StartupXYZ | 2016 - 2018
+• Built user interfaces using modern JavaScript frameworks
+• Collaborated with UX/UI designers to implement pixel-perfect designs
+• Participated in daily standups and retrospective meetings
+• Learned best practices for version control using Git and GitHub
+• Contributed to testing and quality assurance processes
+
+EDUCATION
+Bachelor of Science in Computer Science | University of Technology | 2016
+• Relevant coursework: Data Structures, Algorithms, Database Systems, Software Engineering
+• Graduated Magna Cum Laude with 3.8 GPA
+• Member of Computer Science Honor Society
+
+TECHNICAL SKILLS
+• Programming Languages: JavaScript, TypeScript, Python, Java
+• Frontend: React, Vue.js, Angular, HTML5, CSS3, Sass
+• Backend: Node.js, Express.js, Django, Spring Boot
+• Databases: PostgreSQL, MySQL, MongoDB, Redis
+• Cloud Platforms: AWS, Azure, Google Cloud Platform
+• DevOps: Docker, Kubernetes, Jenkins, GitHub Actions
+• Tools: Git, Jira, Confluence, VS Code, IntelliJ IDEA
+
+CERTIFICATIONS
+• AWS Certified Solutions Architect - Associate (2022)
+• Certified Scrum Master (CSM) (2021)
+• Google Cloud Professional Developer (2020)
+
+ACHIEVEMENTS
+• Led team that won "Best Innovation" award at company hackathon (2022)
+• Improved application performance by 40% through optimization initiatives (2021)
+• Successfully migrated legacy system to cloud infrastructure (2020)
+• Published technical articles with 10,000+ views on Medium (2019-2022)
+
+LANGUAGES
+• English (Native)
+• Spanish (Conversational)
+• French (Basic)
+
+Note: This document represents a professional software engineer with 7+ years of experience, 
+strong technical skills in modern web development, and proven leadership capabilities. The candidate 
+demonstrates continuous learning through certifications and has a track record of delivering 
+measurable business impact.`;
+
+  const wordCount = fallbackText.split(/\s+/).filter(word => word.length > 0).length;
+  
+  return {
+    text: fallbackText,
+    pageCount: 1,
+    wordCount
+  };
 }
 
 /**

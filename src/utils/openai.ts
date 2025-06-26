@@ -46,7 +46,12 @@ async function extractCVText(file: File): Promise<string> {
     return result.text;
   } catch (error) {
     console.error('❌ Error extracting text from file:', error);
-    throw new Error(`Failed to extract text from ${file.name}: ${error}`);
+    
+    // Enhanced fallback - create a meaningful message that can still be processed
+    const fallbackText = `CV document uploaded: ${file.name}. The document content could not be automatically extracted due to technical limitations, but the file has been received and is available for manual review. This may occur with image-based PDFs, password-protected documents, or certain file format variations. The applicant has provided their CV as requested, and manual review may be necessary to assess their qualifications fully.`;
+    
+    console.log('🔄 Using enhanced fallback text for processing');
+    return fallbackText;
   }
 }
 
@@ -239,6 +244,9 @@ Respond in JSON format:
         isFallbackContent = cvText.includes('could not be automatically extracted') || cvText.length < 200;
       } catch (e) {
         console.error('Failed to extract CV for fallback:', e);
+        // Create a meaningful fallback text
+        cvText = `CV document uploaded: ${applicantData.cvFile.name}. Document processing encountered technical difficulties, but the file has been received for manual review.`;
+        isFallbackContent = true;
       }
     }
     
@@ -638,6 +646,7 @@ Format your response as JSON:
         cvText = await extractCVText(applicantData.cvFile);
       } catch (e) {
         console.error('Failed to extract CV text for fallback:', e);
+        cvText = `CV document uploaded: ${applicantData.cvFile.name}. Document processing encountered technical difficulties, but the file has been received for manual review.`;
       }
     }
     

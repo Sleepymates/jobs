@@ -86,37 +86,91 @@ export async function extractTextFromPDF(file: File): Promise<TextExtractionResu
 }
 
 /**
- * Extract text from DOCX file - simplified and robust approach
+ * Extract text from DOCX file using JSZip-like approach
  */
 export async function extractTextFromDOCX(file: File): Promise<TextExtractionResult> {
   try {
     console.log(`📄 Starting DOCX text extraction for: ${file.name}`);
     
     const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Convert to string for text extraction
-    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
-    const rawText = decoder.decode(uint8Array);
+    // DOCX files are ZIP archives, so we need to extract the document.xml
+    const zipData = new Uint8Array(arrayBuffer);
     
-    console.log(`📦 DOCX file size: ${arrayBuffer.byteLength} bytes`);
+    // Find the document.xml file in the ZIP structure
+    let documentXml = '';
     
+    try {
+      // Convert to string to search for ZIP file structure
+      const zipString = new TextDecoder('latin1').decode(zipData);
+      
+      // Look for document.xml content
+      const docXmlStart = zipString.indexOf('word/document.xml');
+      if (docXmlStart !== -1) {
+        // Find the actual XML content after the ZIP header
+        const xmlContentStart = zipString.indexOf('<?xml', docXmlStart);
+        if (xmlContentStart !== -1) {
+          const xmlContentEnd = zipString.indexOf('</w:document>', xmlContentStart);
+          if (xmlContentEnd !== -1) {
+            documentXml = zipString.substring(xmlContentStart, xmlContentEnd + 13);
+          }
+        }
+      }
+      
+      // If we didn't find it that way, try a different approach
+      if (!documentXml) {
+        // Look for any XML content that looks like Word document structure
+        const xmlMatches = zipString.match(/<w:document[^>]*>.*?<\/w:document>/gs);
+        if (xmlMatches && xmlMatches.length > 0) {
+          documentXml = xmlMatches[0];
+        }
+      }
+      
+      // If still no luck, try to find any w:t elements directly
+      if (!documentXml) {
+        const textMatches = zipString.match(/<w:t[^>]*>.*?<\/w:t>/gs);
+        if (textMatches && textMatches.length > 0) {
+          documentXml = textMatches.join(' ');
+        }
+      }
+      
+    } catch (zipError) {
+      console.warn('⚠️ ZIP parsing approach failed, trying direct text extraction');
+      
+      // Fallback: try to extract any readable text from the binary data
+      const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
+      const rawText = decoder.decode(zipData);
+      
+      // Look for any text that looks like it could be from a Word document
+      const textMatches = rawText.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()-]{20,}/g);
+      if (textMatches) {
+        documentXml = textMatches.join(' ');
+      }
+    }
+    
+    console.log(`📦 Found document content: ${documentXml.length} characters`);
+    
+    if (!documentXml) {
+      throw new Error('Could not locate document content in DOCX file');
+    }
+    
+    // Extract text from the XML content
     let extractedText = '';
     const textParts: string[] = [];
     
-    // Method 1: Extract from w:t XML elements (Word text elements)
+    // Method 1: Extract from w:t elements (Word text elements)
     const textElementRegex = /<w:t[^>]*?>(.*?)<\/w:t>/gs;
     let match;
     
-    while ((match = textElementRegex.exec(rawText)) !== null) {
+    while ((match = textElementRegex.exec(documentXml)) !== null) {
       let textContent = match[1];
       
       // Decode XML entities
       textContent = textContent
-        .replace(/</g, '<')
-        .replace(/>/g, '>')
-        .replace(/&/g, '&')
-        .replace(/"/g, '"')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
         .replace(/&apos;/g, "'");
       
       if (textContent.trim().length > 0) {
@@ -124,73 +178,67 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
       }
     }
     
-    console.log(`📝 Found ${textParts.length} text elements from w:t tags`);
+    console.log(`📝 Extracted ${textParts.length} text elements from w:t tags`);
     
-    // If we didn't get enough content from w:t elements, try broader extraction
-    if (textParts.length < 10) {
-      console.log('🔄 Trying broader text extraction...');
+    // Method 2: If not enough content, try extracting from paragraph structure
+    if (textParts.length < 5) {
+      console.log('🔄 Trying paragraph extraction...');
       
-      // Method 2: Extract from paragraph elements
       const paragraphRegex = /<w:p[^>]*?>(.*?)<\/w:p>/gs;
       const paragraphParts: string[] = [];
       
-      while ((match = paragraphRegex.exec(rawText)) !== null) {
+      while ((match = paragraphRegex.exec(documentXml)) !== null) {
         const paraContent = match[1];
         
-        // Remove all XML tags and extract text
+        // Remove XML tags and extract text
         const cleanContent = paraContent
           .replace(/<[^>]*>/g, ' ')
-          .replace(/</g, '<')
-          .replace(/>/g, '>')
-          .replace(/&/g, '&')
-          .replace(/"/g, '"')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
           .replace(/&apos;/g, "'")
           .replace(/\s+/g, ' ')
           .trim();
         
-        if (cleanContent.length > 2 && /[a-zA-Z]/.test(cleanContent)) {
+        if (cleanContent.length > 3 && /[a-zA-Z]/.test(cleanContent)) {
           paragraphParts.push(cleanContent);
         }
       }
       
-      console.log(`📝 Found ${paragraphParts.length} text parts from paragraphs`);
-      
       if (paragraphParts.length > textParts.length) {
-        textParts.length = 0; // Clear previous results
+        textParts.length = 0;
         textParts.push(...paragraphParts);
       }
     }
     
-    // If still not enough content, try extracting any readable text
-    if (textParts.length < 5) {
+    // Method 3: If still not enough, extract any readable text
+    if (textParts.length < 3) {
       console.log('🔄 Trying general text extraction...');
       
-      // Method 3: Look for any readable text sequences
-      const readableTextRegex = /[A-Za-z][A-Za-z0-9\s.,;:!?()-]{10,}/g;
-      const readableMatches = rawText.match(readableTextRegex);
+      // Remove all XML tags and extract readable text
+      const cleanText = documentXml
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&[a-zA-Z0-9#]+;/g, ' ')
+        .replace(/[^\x20-\x7E\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
       
-      if (readableMatches) {
-        const cleanMatches = readableMatches
-          .map(text => text.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim())
-          .filter(text => text.length > 10 && /[a-zA-Z]{3,}/.test(text))
-          .slice(0, 50); // Limit to prevent too much noise
-        
-        console.log(`📝 Found ${cleanMatches.length} readable text sequences`);
-        
-        if (cleanMatches.length > textParts.length) {
-          textParts.length = 0; // Clear previous results
-          textParts.push(...cleanMatches);
-        }
+      const words = cleanText.split(' ').filter(word => 
+        word.length > 2 && /[a-zA-Z]/.test(word)
+      );
+      
+      if (words.length > 10) {
+        textParts.length = 0;
+        textParts.push(words.join(' '));
       }
     }
     
-    // Combine all extracted text parts
+    // Combine all text parts
     extractedText = textParts.join(' ').trim();
     
-    // Clean up the final text
+    // Final cleanup
     extractedText = extractedText
-      .replace(/\s+/g, ' ')
-      .replace(/[^\w\s.,;:!?()-]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
     
@@ -199,10 +247,10 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
     console.log(`✅ DOCX text extraction completed:`);
     console.log(`   - Total characters: ${extractedText.length}`);
     console.log(`   - Word count: ${wordCount}`);
-    console.log(`   - Text parts found: ${textParts.length}`);
+    console.log(`   - Text parts: ${textParts.length}`);
     console.log(`   - Preview: ${extractedText.substring(0, 300)}...`);
     
-    // If we still don't have meaningful content, throw an error like PDF does
+    // Apply the same validation as PDF - throw error if insufficient content
     if (extractedText.length < 100) {
       throw new Error('Extracted text is too short. The DOCX might be image-based, corrupted, or password-protected.');
     }

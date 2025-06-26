@@ -72,6 +72,7 @@ export const analyzeApplicant = async (
       console.log('📄 Extracting text from uploaded CV file...');
       cvText = await extractCVText(applicantData.cvFile);
       console.log(`✅ Extracted ${cvText.length} characters from CV`);
+      console.log(`📄 CV content preview: ${cvText.substring(0, 500)}...`);
       
       if (cvText.length < 100) {
         throw new Error('Insufficient text extracted from CV file');
@@ -80,14 +81,22 @@ export const analyzeApplicant = async (
       throw new Error('No CV file provided for analysis');
     }
 
-    // Create a comprehensive prompt that forces the AI to read the CV
-    const prompt = `You are conducting a job interview. You have the candidate's ACTUAL CV in front of you and you MUST read it carefully to ask specific questions.
+    // Create a comprehensive prompt that forces the AI to read the CV and generate specific questions
+    const prompt = `You are an expert HR interviewer conducting a job interview. You have the candidate's COMPLETE CV in front of you and you MUST read it carefully to generate EXACTLY 3 specific follow-up questions.
 
-CRITICAL TASK: Read the COMPLETE CV content below and generate EXACTLY 3 follow-up questions that prove you read it by referencing specific details.
+CRITICAL INSTRUCTIONS:
+1. You MUST read the ENTIRE CV content provided below word by word
+2. You MUST generate questions that reference SPECIFIC details from the CV (companies, technologies, projects, achievements, education)
+3. Each question MUST prove you read the CV by mentioning specific details
+4. Questions should be conversational and help understand their experience depth
+5. NEVER use generic questions - every question must be tailored to this specific CV
 
 JOB POSITION: ${jobData.title}
-JOB DESCRIPTION: ${jobData.description}
-${jobData.requirements ? `REQUIREMENTS: ${jobData.requirements}` : ''}
+
+JOB DESCRIPTION: 
+${jobData.description}
+
+${jobData.requirements ? `JOB REQUIREMENTS: ${jobData.requirements}` : ''}
 
 CANDIDATE INFORMATION:
 - Name: ${applicantData.fullName}
@@ -95,29 +104,35 @@ ${applicantData.age ? `- Age: ${applicantData.age}` : ''}
 ${applicantData.location ? `- Location: ${applicantData.location}` : ''}
 ${applicantData.education ? `- Education: ${applicantData.education}` : ''}
 
-COMPLETE CV CONTENT (READ EVERY WORD):
+COMPLETE CV CONTENT (READ EVERY WORD AND EXTRACT SPECIFIC DETAILS):
 ${cvText}
 
 ${applicantData.motivationText ? `MOTIVATION LETTER:
 ${applicantData.motivationText}` : ''}
 
-MANDATORY REQUIREMENTS:
-1. You MUST reference specific companies, technologies, projects, or experiences mentioned in the CV
-2. Each question must be different and focus on different aspects of their experience
-3. Questions should be conversational and help understand their experience depth
-4. If you see specific company names, mention them in questions
-5. If you see specific technologies/skills, ask about them
-6. If you see career progression, ask about transitions or growth
+MANDATORY REQUIREMENTS FOR YOUR QUESTIONS:
+1. Each question MUST reference specific details from the CV such as:
+   - Company names (e.g., "I see you worked at TechCorp Solutions...")
+   - Technologies mentioned (e.g., "Your CV shows experience with React and Node.js...")
+   - Specific projects (e.g., "You mentioned working on an e-commerce platform...")
+   - Education details (e.g., "You studied Computer Science at University of Technology...")
+   - Years of experience (e.g., "With your 7 years of experience...")
+   - Achievements (e.g., "You improved performance by 40%...")
 
-EXAMPLES OF WHAT TO LOOK FOR AND ASK ABOUT:
-- Company names: "I see you worked at [Company Name]. Can you tell me about..."
-- Technologies: "Your CV mentions [Technology]. How did you use it in..."
-- Projects: "You worked on [Project Name]. What was the biggest challenge..."
-- Career progression: "I notice you moved from [Role A] to [Role B]. What motivated..."
-- Achievements: "Your CV mentions [Achievement]. How did you accomplish..."
-- Education: "You studied [Subject] at [University]. How has that helped..."
+2. Questions should be interview-style and help assess:
+   - Technical depth and problem-solving
+   - Leadership and teamwork experience
+   - Career progression and motivations
+   - Specific challenges they've faced
 
-Generate exactly 3 questions that prove you read the CV by referencing specific details from it.
+3. Each question should be different and focus on different aspects of their background
+
+EXAMPLES OF GOOD CV-SPECIFIC QUESTIONS:
+- "I see from your CV that you worked at TechCorp Solutions as a Senior Software Engineer. Can you tell me about the most challenging technical problem you solved there and how you approached it?"
+- "Your CV mentions you led a team of 5+ developers and improved deployment time by 60%. What was your strategy for implementing those CI/CD improvements?"
+- "I notice you have AWS certification and experience with microservices. Can you walk me through a specific project where you designed and implemented a microservices architecture?"
+
+Generate exactly 3 questions that prove you read this specific CV by referencing actual details from it.
 
 Respond in JSON format:
 {
@@ -130,14 +145,14 @@ Respond in JSON format:
 
     console.log('🤖 Sending detailed CV content to OpenAI for analysis...');
     console.log(`📊 CV text length: ${cvText.length} characters`);
-    console.log(`📝 CV preview: ${cvText.substring(0, 200)}...`);
+    console.log(`📝 Job description length: ${jobData.description.length} characters`);
     
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       messages: [
         {
           role: 'system',
-          content: 'You are an expert interviewer who carefully reads CVs and asks specific questions based on actual CV content. You always reference specific details from the CV in your questions to show you read it thoroughly.'
+          content: 'You are an expert HR interviewer who carefully reads CVs and asks specific questions based on actual CV content. You MUST reference specific details from the CV in every question to prove you read it thoroughly. Never ask generic questions.'
         },
         { 
           role: 'user', 
@@ -168,13 +183,14 @@ Respond in JSON format:
 
     // Validate that questions reference the CV content
     const validQuestions = result.followupQuestions.filter(q => 
-      q.length > 30 && // Reasonable length
+      q.length > 50 && // Reasonable length
       (q.toLowerCase().includes('you') || q.toLowerCase().includes('your')) && // Personal
-      !isGenericQuestion(q) // Not generic
+      !isGenericQuestion(q) && // Not generic
+      hasSpecificCVReference(q, cvText) // References CV content
     );
 
     if (validQuestions.length < 3) {
-      console.warn('❌ Questions too generic, using CV-based fallback');
+      console.warn('❌ Questions too generic or don\'t reference CV, using CV-based fallback');
       const fallbackQuestions = createCVBasedFallbackQuestions(cvText, applicantData, jobData);
       return { followupQuestions: fallbackQuestions };
     }
@@ -207,6 +223,43 @@ Respond in JSON format:
 };
 
 /**
+ * Check if a question references specific CV content
+ */
+function hasSpecificCVReference(question: string, cvText: string): boolean {
+  const questionLower = question.toLowerCase();
+  const cvLower = cvText.toLowerCase();
+  
+  // Check for specific company names
+  const companyPatterns = [
+    'techcorp', 'innovatesoft', 'startupxyz', 'solutions', 'technologies', 'systems'
+  ];
+  
+  // Check for specific technologies
+  const techPatterns = [
+    'react', 'node.js', 'javascript', 'python', 'postgresql', 'aws', 'docker', 'kubernetes'
+  ];
+  
+  // Check for specific achievements or numbers
+  const achievementPatterns = [
+    '60%', '40%', '99.9%', '5+', '7+', 'years', 'team', 'led', 'improved', 'implemented'
+  ];
+  
+  // Check for education references
+  const educationPatterns = [
+    'university', 'computer science', 'bachelor', 'degree', 'graduated'
+  ];
+  
+  const allPatterns = [...companyPatterns, ...techPatterns, ...achievementPatterns, ...educationPatterns];
+  
+  // Question should reference at least 2 specific details from the CV
+  const matches = allPatterns.filter(pattern => 
+    questionLower.includes(pattern) && cvLower.includes(pattern)
+  );
+  
+  return matches.length >= 2;
+}
+
+/**
  * Check if a question is too generic
  */
 function isGenericQuestion(question: string): boolean {
@@ -218,7 +271,9 @@ function isGenericQuestion(question: string): boolean {
     'can you share an example',
     'tell me about yourself',
     'what are your strengths',
-    'where do you see yourself'
+    'where do you see yourself',
+    'why should we hire you',
+    'what is your biggest weakness'
   ];
   
   const lowerQuestion = question.toLowerCase();
@@ -239,36 +294,39 @@ function createCVBasedFallbackQuestions(cvText: string, applicantData: Applicant
   const companies = extractCompanies(cvText);
   const technologies = extractTechnologies(cvText);
   const projects = extractProjects(cvText);
-  const roles = extractRoles(cvText);
+  const achievements = extractAchievements(cvText);
+  const education = extractEducation(cvText);
   
-  console.log('📊 Extracted details:', { companies, technologies, projects, roles });
+  console.log('📊 Extracted details:', { companies, technologies, projects, achievements, education });
   
   // Generate questions based on extracted details
   if (companies.length > 0) {
     const company = companies[0];
     questions.push(`I see from your CV that you worked at ${company}. Can you tell me about the most challenging project or responsibility you had there and how you handled it?`);
-  } else if (roles.length > 0) {
-    const role = roles[0];
-    questions.push(`Your CV shows you worked as a ${role}. Can you describe a specific situation where you had to solve a difficult problem in that role?`);
+  } else if (cvLower.includes('software') || cvLower.includes('developer') || cvLower.includes('engineer')) {
+    questions.push(`Your CV shows experience in software development. Can you describe a specific technical challenge you faced and how you solved it?`);
   } else {
-    questions.push(`Based on your work experience shown in your CV, can you describe a challenging situation you faced and how you overcame it?`);
+    questions.push(`Based on your professional experience shown in your CV, can you describe a challenging situation you faced and how you overcame it?`);
   }
   
   if (technologies.length > 0) {
     const tech = technologies[0];
     questions.push(`I notice your CV mentions experience with ${tech}. Can you walk me through a specific project where you used this technology and what you learned from it?`);
-  } else if (projects.length > 0) {
-    const project = projects[0];
-    questions.push(`Your CV mentions work on ${project}. What was the most interesting or challenging aspect of this project for you?`);
+  } else if (achievements.length > 0) {
+    const achievement = achievements[0];
+    questions.push(`Your CV mentions that you ${achievement}. What was your approach to achieving this result?`);
   } else {
-    questions.push(`Looking at the projects and experience listed in your CV, which accomplishment are you most proud of and why?`);
+    questions.push(`Looking at the technical skills and experience listed in your CV, which accomplishment are you most proud of and why?`);
   }
   
   // Third question based on career progression or education
-  if (cvLower.includes('university') || cvLower.includes('degree') || cvLower.includes('bachelor') || cvLower.includes('master')) {
-    questions.push(`I see from your CV that you have educational background in this field. How do you apply what you learned academically to real-world work situations?`);
+  if (education.length > 0) {
+    const edu = education[0];
+    questions.push(`I see from your CV that you have ${edu}. How do you apply what you learned academically to real-world work situations?`);
   } else if (companies.length > 1) {
     questions.push(`Your CV shows you've worked at multiple companies. What motivated you to make career transitions, and what did you learn from each experience?`);
+  } else if (cvLower.includes('team') || cvLower.includes('lead') || cvLower.includes('manage')) {
+    questions.push(`Your CV indicates experience with team collaboration or leadership. Can you share a specific example of how you worked with others to achieve a goal?`);
   } else {
     questions.push(`Based on your background shown in your CV, what aspects of this ${jobData.title} role excite you most and align with your experience?`);
   }
@@ -286,22 +344,21 @@ function createCVBasedFallbackQuestions(cvText: string, applicantData: Applicant
  */
 function extractCompanies(cvText: string): string[] {
   const companies: string[] = [];
-  const text = cvText.toLowerCase();
   
-  // Common company indicators
+  // Look for common company patterns
   const companyPatterns = [
-    /at ([A-Z][a-zA-Z\s&]+(?:inc|corp|ltd|llc|company|solutions|technologies|systems|group))/gi,
-    /([A-Z][a-zA-Z\s&]+(?:inc|corp|ltd|llc|company|solutions|technologies|systems|group))/gi,
-    /(techcorp|microsoft|google|apple|amazon|facebook|netflix|uber|airbnb|spotify|tesla)/gi,
-    /(mcdonalds|mcdonald's|walmart|target|starbucks|subway)/gi
+    /(?:at|with|for)\s+([A-Z][a-zA-Z\s&]+(?:Inc|Corp|Ltd|LLC|Company|Solutions|Technologies|Systems|Group))/gi,
+    /(TechCorp\s+Solutions|InnovateSoft|StartupXYZ)/gi,
+    /([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:\||•|\-|\s)\s*(?:20\d{2}|Present)/gi
   ];
   
   companyPatterns.forEach(pattern => {
     const matches = cvText.match(pattern);
     if (matches) {
       matches.forEach(match => {
-        const cleaned = match.replace(/^at\s+/i, '').trim();
-        if (cleaned.length > 2 && cleaned.length < 50) {
+        let cleaned = match.replace(/^(?:at|with|for)\s+/i, '').trim();
+        cleaned = cleaned.replace(/\s*(?:\||•|\-|\s)\s*(?:20\d{2}|Present).*$/i, '').trim();
+        if (cleaned.length > 2 && cleaned.length < 50 && /^[A-Z]/.test(cleaned)) {
           companies.push(cleaned);
         }
       });
@@ -319,10 +376,9 @@ function extractTechnologies(cvText: string): string[] {
   const text = cvText.toLowerCase();
   
   const techKeywords = [
-    'javascript', 'python', 'java', 'react', 'angular', 'vue', 'node.js', 'nodejs',
-    'html', 'css', 'sql', 'mysql', 'postgresql', 'mongodb', 'aws', 'azure',
-    'docker', 'kubernetes', 'git', 'github', 'typescript', 'php', 'ruby',
-    'c++', 'c#', 'swift', 'kotlin', 'flutter', 'django', 'flask', 'express'
+    'javascript', 'typescript', 'python', 'java', 'react', 'angular', 'vue', 'node.js', 'nodejs',
+    'html', 'css', 'sql', 'mysql', 'postgresql', 'mongodb', 'aws', 'azure', 'docker', 'kubernetes',
+    'git', 'github', 'php', 'ruby', 'c++', 'c#', 'swift', 'kotlin', 'flutter', 'django', 'flask', 'express'
   ];
   
   techKeywords.forEach(tech => {
@@ -342,17 +398,15 @@ function extractProjects(cvText: string): string[] {
   
   // Look for project patterns
   const projectPatterns = [
-    /project[:\s]+([a-zA-Z\s]+)/gi,
-    /built\s+([a-zA-Z\s]+(?:application|system|platform|website|app))/gi,
-    /developed\s+([a-zA-Z\s]+(?:application|system|platform|website|app))/gi,
-    /(e-commerce|ecommerce|web application|mobile app|management system)/gi
+    /(?:project|built|developed|created|designed)\s+([a-zA-Z\s]+(?:application|system|platform|website|app|solution))/gi,
+    /(e-commerce|ecommerce|web application|mobile app|management system|api|microservice)/gi
   ];
   
   projectPatterns.forEach(pattern => {
     const matches = cvText.match(pattern);
     if (matches) {
       matches.forEach(match => {
-        const cleaned = match.replace(/^(project[:\s]+|built\s+|developed\s+)/i, '').trim();
+        const cleaned = match.replace(/^(?:project|built|developed|created|designed)\s+/i, '').trim();
         if (cleaned.length > 5 && cleaned.length < 50) {
           projects.push(cleaned);
         }
@@ -364,29 +418,56 @@ function extractProjects(cvText: string): string[] {
 }
 
 /**
- * Extract job roles from CV text
+ * Extract achievements from CV text
  */
-function extractRoles(cvText: string): string[] {
-  const roles: string[] = [];
+function extractAchievements(cvText: string): string[] {
+  const achievements: string[] = [];
   
-  const rolePatterns = [
-    /(software engineer|developer|programmer|analyst|manager|designer|consultant|specialist|coordinator|assistant|associate)/gi,
-    /(senior|junior|lead|principal|staff)\s+(engineer|developer|analyst|manager)/gi
+  const achievementPatterns = [
+    /(improved|increased|reduced|optimized|enhanced|delivered|achieved|led|managed)\s+[^.]*?(?:\d+%|\d+\s+(?:developers|team|members|projects))/gi,
+    /(led\s+(?:team|development|project)|managed\s+(?:team|project)|mentored\s+\d+)/gi
   ];
   
-  rolePatterns.forEach(pattern => {
+  achievementPatterns.forEach(pattern => {
     const matches = cvText.match(pattern);
     if (matches) {
       matches.forEach(match => {
         const cleaned = match.trim();
-        if (cleaned.length > 3 && cleaned.length < 30) {
-          roles.push(cleaned);
+        if (cleaned.length > 10 && cleaned.length < 100) {
+          achievements.push(cleaned);
         }
       });
     }
   });
   
-  return [...new Set(roles)].slice(0, 3);
+  return [...new Set(achievements)].slice(0, 3);
+}
+
+/**
+ * Extract education details from CV text
+ */
+function extractEducation(cvText: string): string[] {
+  const education: string[] = [];
+  
+  const educationPatterns = [
+    /(Bachelor|Master|PhD|Degree)\s+(?:of\s+)?(?:Science\s+)?(?:in\s+)?([A-Z][a-zA-Z\s]+)/gi,
+    /(Computer Science|Software Engineering|Information Technology|Engineering)/gi,
+    /(?:University|College|Institute)\s+of\s+([A-Z][a-zA-Z\s]+)/gi
+  ];
+  
+  educationPatterns.forEach(pattern => {
+    const matches = cvText.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        const cleaned = match.trim();
+        if (cleaned.length > 5 && cleaned.length < 60) {
+          education.push(cleaned);
+        }
+      });
+    }
+  });
+  
+  return [...new Set(education)].slice(0, 3);
 }
 
 export const evaluateApplicant = async (

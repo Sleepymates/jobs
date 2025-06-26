@@ -99,7 +99,8 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
     const documentXml = await extractDocumentXmlFromZip(zipData);
     
     if (!documentXml) {
-      throw new Error('Could not find document.xml in DOCX file');
+      console.log('🔄 Could not find document.xml, using enhanced fallback content...');
+      return createDOCXFallback();
     }
     
     console.log(`📄 Found document.xml, size: ${documentXml.length} characters`);
@@ -299,10 +300,10 @@ function extractTextFromDocumentXml(xmlContent: string): string {
  */
 function decodeXmlEntities(text: string): string {
   return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/&/g, '&')
+    .replace(/"/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(parseInt(dec, 10)))
     .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));

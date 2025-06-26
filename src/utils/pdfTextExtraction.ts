@@ -116,9 +116,10 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
       extractedText = await tryEnhancedPatternMatching(uint8Array);
     }
     
-    // If we still don't have good content, throw an error instead of using fallback
+    // If we still don't have good content, use fallback text instead of throwing error
     if (!extractedText || extractedText.length < 50) {
-      throw new Error('Could not extract meaningful text from DOCX file. The file may be corrupted, password-protected, or contain only images.');
+      console.warn('⚠️ Could not extract meaningful text from DOCX file, using fallback text');
+      extractedText = `CV/Resume content could not be automatically extracted from ${file.name}. This file may be corrupted, password-protected, contain only images, or use an unsupported format. Manual review of the original document is recommended. The applicant has submitted a document titled "${file.name}" which should be reviewed directly by the hiring team.`;
     }
     
     const wordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
@@ -136,7 +137,17 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
     
   } catch (error) {
     console.error('❌ DOCX text extraction failed:', error);
-    throw new Error(`Failed to extract text from DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    
+    // Even if there's an unexpected error, provide fallback text instead of throwing
+    const fallbackText = `CV/Resume content could not be automatically extracted from ${file.name} due to a technical error. The applicant has submitted a document which should be reviewed directly by the hiring team. Error details: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    
+    console.log('🔄 Using fallback text due to extraction error');
+    
+    return {
+      text: fallbackText,
+      pageCount: 1,
+      wordCount: fallbackText.split(/\s+/).filter(word => word.length > 0).length
+    };
   }
 }
 
@@ -375,10 +386,10 @@ function extractTextFromXML(xmlContent: string): string {
  */
 function decodeXmlEntities(text: string): string {
   return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/&/g, '&')
+    .replace(/"/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(parseInt(dec, 10)))
     .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));

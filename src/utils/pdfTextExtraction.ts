@@ -86,39 +86,47 @@ export async function extractTextFromPDF(file: File): Promise<TextExtractionResu
 }
 
 /**
- * Parse DOCX file as ZIP and extract text from document.xml
+ * Extract text from DOCX file using multiple methods
  */
 export async function extractTextFromDOCX(file: File): Promise<TextExtractionResult> {
   try {
     console.log(`📄 Starting DOCX text extraction for: ${file.name}`);
     
     const arrayBuffer = await file.arrayBuffer();
-    const zipData = new Uint8Array(arrayBuffer);
+    const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Parse DOCX as ZIP file manually
-    const documentXml = await extractDocumentXmlFromZip(zipData);
+    // Method 1: Try to extract as ZIP and find document.xml
+    let extractedText = await tryZipExtraction(uint8Array);
     
-    if (!documentXml) {
-      console.log('🔄 Could not find document.xml, using enhanced fallback content...');
-      return createDOCXFallback();
+    // Method 2: If ZIP extraction fails, try direct text extraction
+    if (!extractedText || extractedText.length < 100) {
+      console.log('🔄 ZIP extraction insufficient, trying direct text extraction...');
+      extractedText = await tryDirectTextExtraction(uint8Array);
     }
     
-    console.log(`📄 Found document.xml, size: ${documentXml.length} characters`);
+    // Method 3: If still no good content, try binary text search
+    if (!extractedText || extractedText.length < 100) {
+      console.log('🔄 Direct extraction insufficient, trying binary text search...');
+      extractedText = await tryBinaryTextSearch(uint8Array);
+    }
     
-    // Extract text from the XML content
-    const extractedText = extractTextFromDocumentXml(documentXml);
+    // Method 4: Last resort - enhanced pattern matching
+    if (!extractedText || extractedText.length < 100) {
+      console.log('🔄 Binary search insufficient, trying enhanced pattern matching...');
+      extractedText = await tryEnhancedPatternMatching(uint8Array);
+    }
+    
+    // If we still don't have good content, throw an error instead of using fallback
+    if (!extractedText || extractedText.length < 50) {
+      throw new Error('Could not extract meaningful text from DOCX file. The file may be corrupted, password-protected, or contain only images.');
+    }
     
     const wordCount = extractedText.split(/\s+/).filter(word => word.length > 0).length;
     
     console.log(`✅ DOCX text extraction completed:`);
     console.log(`   - Total characters: ${extractedText.length}`);
     console.log(`   - Word count: ${wordCount}`);
-    console.log(`   - Preview: ${extractedText.substring(0, 200)}...`);
-    
-    if (extractedText.length < 50) {
-      console.warn('⚠️ Extracted text is short, using enhanced fallback...');
-      return createDOCXFallback();
-    }
+    console.log(`   - Preview: ${extractedText.substring(0, 300)}...`);
     
     return {
       text: extractedText,
@@ -128,125 +136,205 @@ export async function extractTextFromDOCX(file: File): Promise<TextExtractionRes
     
   } catch (error) {
     console.error('❌ DOCX text extraction failed:', error);
-    console.log('🔄 Using enhanced fallback content...');
-    return createDOCXFallback();
+    throw new Error(`Failed to extract text from DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
 /**
- * Extract document.xml from DOCX ZIP file
+ * Method 1: Try to extract document.xml from ZIP structure
  */
-async function extractDocumentXmlFromZip(zipData: Uint8Array): Promise<string | null> {
+async function tryZipExtraction(uint8Array: Uint8Array): Promise<string | null> {
   try {
-    // Simple ZIP file parsing to find document.xml
-    const view = new DataView(zipData.buffer);
-    let offset = 0;
+    console.log('📦 Attempting ZIP extraction...');
     
     // Look for ZIP file signature
+    const view = new DataView(uint8Array.buffer);
     if (view.getUint32(0, true) !== 0x04034b50) {
-      throw new Error('Invalid ZIP file signature');
+      console.log('❌ Not a valid ZIP file');
+      return null;
     }
     
-    // Parse ZIP entries to find document.xml
-    while (offset < zipData.length - 30) {
-      // Check for local file header signature
-      if (view.getUint32(offset, true) === 0x04034b50) {
-        const filenameLength = view.getUint16(offset + 26, true);
-        const extraFieldLength = view.getUint16(offset + 28, true);
-        const compressedSize = view.getUint32(offset + 18, true);
-        
-        // Extract filename
-        const filenameStart = offset + 30;
-        const filename = new TextDecoder().decode(zipData.slice(filenameStart, filenameStart + filenameLength));
-        
-        // Calculate data start position (always needed for offset calculation)
-        const dataStart = filenameStart + filenameLength + extraFieldLength;
-        
-        console.log(`📁 Found ZIP entry: ${filename}`);
-        
-        if (filename === 'word/document.xml') {
-          const fileData = zipData.slice(dataStart, dataStart + compressedSize);
-          
-          // Try to decompress if needed (simple case - uncompressed)
-          const compressionMethod = view.getUint16(offset + 8, true);
-          if (compressionMethod === 0) {
-            // Uncompressed
-            return new TextDecoder().decode(fileData);
-          } else {
-            // For compressed files, we'll use a different approach
-            console.log('📦 File is compressed, trying alternative extraction...');
-            return extractDocumentXmlAlternative(zipData);
+    // Convert to text to search for XML content
+    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
+    const fullText = decoder.decode(uint8Array);
+    
+    // Look for document.xml content
+    const documentXmlMatch = fullText.match(/<w:document[^>]*>[\s\S]*?<\/w:document>/);
+    if (documentXmlMatch) {
+      console.log('✅ Found document.xml content');
+      return extractTextFromXML(documentXmlMatch[0]);
+    }
+    
+    console.log('❌ Could not find document.xml in ZIP');
+    return null;
+  } catch (error) {
+    console.error('❌ ZIP extraction failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Method 2: Direct text extraction from binary data
+ */
+async function tryDirectTextExtraction(uint8Array: Uint8Array): Promise<string | null> {
+  try {
+    console.log('📝 Attempting direct text extraction...');
+    
+    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
+    const text = decoder.decode(uint8Array);
+    
+    // Look for w:t elements directly
+    const textElements = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+    if (textElements && textElements.length > 0) {
+      console.log(`✅ Found ${textElements.length} text elements`);
+      
+      const extractedTexts = textElements.map(element => {
+        const match = element.match(/<w:t[^>]*>([^<]*)<\/w:t>/);
+        return match ? decodeXmlEntities(match[1]) : '';
+      }).filter(text => text.trim().length > 0);
+      
+      const result = extractedTexts.join(' ').trim();
+      console.log(`📝 Direct extraction result: ${result.length} characters`);
+      return result.length > 50 ? result : null;
+    }
+    
+    console.log('❌ No text elements found in direct extraction');
+    return null;
+  } catch (error) {
+    console.error('❌ Direct text extraction failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Method 3: Binary text search for readable content
+ */
+async function tryBinaryTextSearch(uint8Array: Uint8Array): Promise<string | null> {
+  try {
+    console.log('🔍 Attempting binary text search...');
+    
+    const decoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: false });
+    const text = decoder.decode(uint8Array);
+    
+    // Look for any readable text patterns that might be CV content
+    const readableTexts: string[] = [];
+    
+    // Pattern 1: Look for common CV words followed by readable text
+    const cvPatterns = [
+      /(?:experience|education|skills|work|employment|career|professional|summary|objective|qualifications)[:\s]+([a-zA-Z0-9\s.,;:!?()-]{20,200})/gi,
+      /(?:university|college|degree|bachelor|master|phd|certification)[:\s]+([a-zA-Z0-9\s.,;:!?()-]{10,100})/gi,
+      /(?:company|corporation|inc|ltd|llc|solutions|technologies|systems)[:\s]*([a-zA-Z0-9\s.,;:!?()-]{10,100})/gi,
+      /(?:javascript|python|java|react|angular|vue|node|html|css|sql|aws|azure|docker)[:\s]*([a-zA-Z0-9\s.,;:!?()-]{10,100})/gi
+    ];
+    
+    cvPatterns.forEach(pattern => {
+      const matches = text.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          const cleaned = match.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim();
+          if (cleaned.length > 20 && /[a-zA-Z]{3,}/.test(cleaned)) {
+            readableTexts.push(cleaned);
           }
+        });
+      }
+    });
+    
+    // Pattern 2: Look for sequences of readable text
+    const readableSequences = text.match(/[A-Za-z][A-Za-z0-9\s.,;:!?()-]{30,}/g);
+    if (readableSequences) {
+      readableSequences.forEach(sequence => {
+        const cleaned = sequence.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim();
+        if (cleaned.length > 30 && /[a-zA-Z]{5,}/.test(cleaned)) {
+          readableTexts.push(cleaned);
         }
+      });
+    }
+    
+    if (readableTexts.length > 0) {
+      const result = readableTexts.join(' ').trim();
+      console.log(`✅ Binary search found ${readableTexts.length} text segments, total: ${result.length} characters`);
+      return result.length > 50 ? result : null;
+    }
+    
+    console.log('❌ No readable text found in binary search');
+    return null;
+  } catch (error) {
+    console.error('❌ Binary text search failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Method 4: Enhanced pattern matching for any text content
+ */
+async function tryEnhancedPatternMatching(uint8Array: Uint8Array): Promise<string | null> {
+  try {
+    console.log('🎯 Attempting enhanced pattern matching...');
+    
+    // Try different encodings
+    const encodings = ['utf-8', 'utf-16le', 'utf-16be', 'latin1'];
+    
+    for (const encoding of encodings) {
+      try {
+        const decoder = new TextDecoder(encoding, { ignoreBOM: true, fatal: false });
+        const text = decoder.decode(uint8Array);
         
-        // Move to next entry
-        offset = dataStart + compressedSize;
-      } else {
-        offset++;
+        // Look for any meaningful text patterns
+        const meaningfulTexts: string[] = [];
+        
+        // Extract any text that looks like names, companies, or skills
+        const patterns = [
+          /[A-Z][a-z]+\s+[A-Z][a-z]+/g, // Names like "John Smith"
+          /[A-Z][a-zA-Z\s]+(?:Inc|Corp|Ltd|LLC|Company|Solutions|Technologies|University|College)/g, // Company/Education names
+          /(?:JavaScript|Python|Java|React|Angular|Vue|Node\.js|HTML|CSS|SQL|AWS|Azure|Docker|Kubernetes)/gi, // Technologies
+          /\b(?:Bachelor|Master|PhD|Degree|Certificate|Certification)\b[^.]{0,50}/gi, // Education
+          /\b(?:Manager|Engineer|Developer|Analyst|Specialist|Coordinator|Director|Lead)\b[^.]{0,30}/gi, // Job titles
+          /\b(?:experience|years|worked|developed|managed|led|created|implemented|designed)\b[^.]{0,100}/gi // Experience descriptions
+        ];
+        
+        patterns.forEach(pattern => {
+          const matches = text.match(pattern);
+          if (matches) {
+            matches.forEach(match => {
+              const cleaned = match.replace(/[^\w\s.,;:!?()-]/g, ' ').replace(/\s+/g, ' ').trim();
+              if (cleaned.length > 5 && /[a-zA-Z]{3,}/.test(cleaned)) {
+                meaningfulTexts.push(cleaned);
+              }
+            });
+          }
+        });
+        
+        if (meaningfulTexts.length > 3) {
+          const result = meaningfulTexts.join('. ').trim();
+          console.log(`✅ Enhanced pattern matching (${encoding}) found ${meaningfulTexts.length} segments, total: ${result.length} characters`);
+          return result.length > 50 ? result : null;
+        }
+      } catch (encodingError) {
+        console.log(`❌ Encoding ${encoding} failed:`, encodingError.message);
       }
     }
     
-    // If we didn't find document.xml, try alternative method
-    return extractDocumentXmlAlternative(zipData);
-    
-  } catch (error) {
-    console.error('❌ ZIP parsing failed:', error);
-    return extractDocumentXmlAlternative(zipData);
-  }
-}
-
-/**
- * Alternative method to extract document.xml content
- */
-function extractDocumentXmlAlternative(zipData: Uint8Array): string | null {
-  try {
-    // Convert to string and look for XML patterns
-    const text = new TextDecoder('utf-8', { ignoreBOM: true }).decode(zipData);
-    
-    // Look for document.xml content patterns
-    const xmlStartPattern = /<w:document[^>]*>/;
-    const xmlEndPattern = /<\/w:document>/;
-    
-    const startMatch = text.search(xmlStartPattern);
-    const endMatch = text.search(xmlEndPattern);
-    
-    if (startMatch !== -1 && endMatch !== -1 && endMatch > startMatch) {
-      const xmlContent = text.substring(startMatch, endMatch + '</w:document>'.length);
-      console.log(`📄 Extracted document.xml content: ${xmlContent.length} characters`);
-      return xmlContent;
-    }
-    
-    // If that doesn't work, look for any w:t elements in the entire file
-    const textElementRegex = /<w:t[^>]*>.*?<\/w:t>/gs;
-    const matches = text.match(textElementRegex);
-    
-    if (matches && matches.length > 0) {
-      console.log(`📄 Found ${matches.length} text elements in DOCX`);
-      return matches.join('\n');
-    }
-    
+    console.log('❌ Enhanced pattern matching found no meaningful content');
     return null;
   } catch (error) {
-    console.error('❌ Alternative extraction failed:', error);
+    console.error('❌ Enhanced pattern matching failed:', error);
     return null;
   }
 }
 
 /**
- * Extract text content from document.xml
+ * Extract text from XML content
  */
-function extractTextFromDocumentXml(xmlContent: string): string {
+function extractTextFromXML(xmlContent: string): string {
   const textParts: string[] = [];
   
   try {
-    // Method 1: Extract from w:t elements (most reliable)
+    // Extract from w:t elements
     const textElementRegex = /<w:t[^>]*>(.*?)<\/w:t>/gs;
     let match;
     
     while ((match = textElementRegex.exec(xmlContent)) !== null) {
       let textContent = match[1];
-      
-      // Decode XML entities
       textContent = decodeXmlEntities(textContent);
       
       if (textContent.trim().length > 0) {
@@ -254,43 +342,28 @@ function extractTextFromDocumentXml(xmlContent: string): string {
       }
     }
     
-    // Method 2: If we didn't get enough content, try extracting from paragraphs
+    // If we didn't get enough content, try extracting from paragraphs
     if (textParts.length < 5) {
       const paragraphRegex = /<w:p[^>]*>(.*?)<\/w:p>/gs;
       while ((match = paragraphRegex.exec(xmlContent)) !== null) {
         const paraContent = match[1];
         
-        // Extract text from nested w:t elements
-        const nestedTextRegex = /<w:t[^>]*>(.*?)<\/w:t>/g;
-        let nestedMatch;
-        const paraTexts: string[] = [];
+        // Remove XML tags and extract text
+        const cleanContent = paraContent
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
         
-        while ((nestedMatch = nestedTextRegex.exec(paraContent)) !== null) {
-          const nestedText = decodeXmlEntities(nestedMatch[1]);
-          if (nestedText.trim().length > 0) {
-            paraTexts.push(nestedText.trim());
-          }
-        }
-        
-        if (paraTexts.length > 0) {
-          textParts.push(paraTexts.join(' '));
+        if (cleanContent.length > 2) {
+          textParts.push(cleanContent);
         }
       }
     }
     
-    // Combine all text parts
-    let finalText = textParts.join(' ').trim();
+    const result = textParts.join(' ').trim();
+    console.log(`📝 XML extraction result: ${textParts.length} parts, ${result.length} characters`);
     
-    // Clean up the text
-    finalText = finalText
-      .replace(/\s+/g, ' ')
-      .replace(/\n+/g, '\n')
-      .trim();
-    
-    console.log(`📝 Extracted ${textParts.length} text parts, total length: ${finalText.length}`);
-    
-    return finalText;
-    
+    return result;
   } catch (error) {
     console.error('❌ XML text extraction failed:', error);
     return textParts.join(' ').trim();
@@ -302,93 +375,13 @@ function extractTextFromDocumentXml(xmlContent: string): string {
  */
 function decodeXmlEntities(text: string): string {
   return text
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/&/g, '&')
-    .replace(/"/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(parseInt(dec, 10)))
     .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
-}
-
-/**
- * Create enhanced fallback content for DOCX files
- */
-function createDOCXFallback(): TextExtractionResult {
-  const fallbackText = `Professional Resume Document - Microsoft Word Format
-
-PROFESSIONAL SUMMARY
-Experienced professional with demonstrated expertise in software development and project management. 
-Strong background in full-stack development, team leadership, and technical innovation. Proven track 
-record of delivering high-quality solutions in fast-paced environments while maintaining excellent 
-communication with stakeholders and team members.
-
-WORK EXPERIENCE
-
-Senior Software Engineer | TechCorp Solutions | 2020 - Present
-• Led development of scalable web applications using React, Node.js, and PostgreSQL
-• Managed cross-functional teams of 5+ developers and designers
-• Implemented CI/CD pipelines reducing deployment time by 60%
-• Mentored junior developers and conducted code reviews
-• Collaborated with product managers to define technical requirements
-
-Software Developer | InnovateSoft | 2018 - 2020  
-• Developed responsive web applications using JavaScript, HTML5, and CSS3
-• Worked with RESTful APIs and microservices architecture
-• Participated in agile development processes and sprint planning
-• Contributed to open-source projects and technical documentation
-• Maintained 99.9% uptime for production applications
-
-Junior Developer | StartupXYZ | 2016 - 2018
-• Built user interfaces using modern JavaScript frameworks
-• Collaborated with UX/UI designers to implement pixel-perfect designs
-• Participated in daily standups and retrospective meetings
-• Learned best practices for version control using Git and GitHub
-• Contributed to testing and quality assurance processes
-
-EDUCATION
-Bachelor of Science in Computer Science | University of Technology | 2016
-• Relevant coursework: Data Structures, Algorithms, Database Systems, Software Engineering
-• Graduated Magna Cum Laude with 3.8 GPA
-• Member of Computer Science Honor Society
-
-TECHNICAL SKILLS
-• Programming Languages: JavaScript, TypeScript, Python, Java
-• Frontend: React, Vue.js, Angular, HTML5, CSS3, Sass
-• Backend: Node.js, Express.js, Django, Spring Boot
-• Databases: PostgreSQL, MySQL, MongoDB, Redis
-• Cloud Platforms: AWS, Azure, Google Cloud Platform
-• DevOps: Docker, Kubernetes, Jenkins, GitHub Actions
-• Tools: Git, Jira, Confluence, VS Code, IntelliJ IDEA
-
-CERTIFICATIONS
-• AWS Certified Solutions Architect - Associate (2022)
-• Certified Scrum Master (CSM) (2021)
-• Google Cloud Professional Developer (2020)
-
-ACHIEVEMENTS
-• Led team that won "Best Innovation" award at company hackathon (2022)
-• Improved application performance by 40% through optimization initiatives (2021)
-• Successfully migrated legacy system to cloud infrastructure (2020)
-• Published technical articles with 10,000+ views on Medium (2019-2022)
-
-LANGUAGES
-• English (Native)
-• Spanish (Conversational)
-• French (Basic)
-
-Note: This document represents a professional software engineer with 7+ years of experience, 
-strong technical skills in modern web development, and proven leadership capabilities. The candidate 
-demonstrates continuous learning through certifications and has a track record of delivering 
-measurable business impact.`;
-
-  const wordCount = fallbackText.split(/\s+/).filter(word => word.length > 0).length;
-  
-  return {
-    text: fallbackText,
-    pageCount: 1,
-    wordCount
-  };
 }
 
 /**

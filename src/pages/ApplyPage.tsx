@@ -15,6 +15,19 @@ import { analyzeApplicant, evaluateApplicant } from '../utils/openai';
 import { sendApplicantNotificationWebhook } from '../utils/makeWebhook';
 import { parseJobUrl } from '../utils/urlHelpers';
 
+interface AnalysisResult {
+  fileName: string;
+  matchScore: number;
+  summary: string;
+  tags: string[];
+  status: 'completed' | 'error';
+  error?: string;
+  extractedTextLength?: number;
+  pageCount?: number;
+  wordCount?: number;
+  cvFile?: File; // Store the original file for top candidates
+}
+
 const ApplyPage: React.FC = () => {
   const { jobSlug } = useParams<{ jobSlug: string }>();
   const navigate = useNavigate();
@@ -358,10 +371,12 @@ const ApplyPage: React.FC = () => {
 
       await supabase.rpc('increment_applicant_count', { job_id_param: jobId });
 
+      // Send webhook with applicant email included
       await sendApplicantNotificationWebhook(
         {
           job_id: jobId || '',
           applicant_name: formData.fullName,
+          applicant_email: formData.email, // Include applicant email
           ai_score: evaluation.matchScore,
           ai_summary: evaluation.summary,
           dashboard_url: `/dashboard/${jobId}`,

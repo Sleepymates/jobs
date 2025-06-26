@@ -18,6 +18,7 @@ type JobNotification = {
 type ApplicantNotification = {
   job_id: string;
   applicant_name: string;
+  applicant_email: string; // Added applicant email
   ai_score: number;
   ai_summary: string;
   dashboard_url: string;

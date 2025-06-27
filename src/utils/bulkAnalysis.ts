@@ -92,8 +92,8 @@ export const analyzeBulkCVs = async (
         console.log(`   - Tags: ${analysisResult.tags.slice(0, 3).join(', ')}...`);
         console.log(`   - Summary: ${analysisResult.summary.substring(0, 100)}...`);
         
-        // Truncate summary to max 250 characters for better readability
-        const truncatedSummary = truncateSummary(analysisResult.summary, 250);
+        // Truncate summary to max 350 characters
+        const truncatedSummary = truncateSummary(analysisResult.summary, 350);
         
         results.push({
           fileName,
@@ -282,7 +282,7 @@ export const exportDetailedSummaries = (results: AnalysisResult[]): string => {
       'AI-Generated Tags:',
       result.tags.map(tag => `  • ${tag}`).join('\n'),
       '',
-      'Detailed Analysis Summary:',
+      'Detailed Analysis Summary (Max 350 chars):',
       result.summary,
       ''
     ];

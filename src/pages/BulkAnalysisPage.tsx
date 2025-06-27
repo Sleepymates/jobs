@@ -135,31 +135,21 @@ const BulkAnalysisPage: React.FC = () => {
   };
 
   const enhanceTopCandidateSummary = async (result: AnalysisResult, rank: number): Promise<string> => {
-    // For top 5 candidates, create a more detailed summary
+    // For top 5 candidates, create a more detailed but shorter summary
     const baseLength = result.summary.length;
-    const targetLength = Math.floor(baseLength * 1.3); // 30% longer
     
-    // Enhanced summary template for top candidates
-    const enhancedSummary = `🏆 TOP ${rank} CANDIDATE - DETAILED ANALYSIS
+    // Enhanced but concise summary template for top candidates
+    const enhancedSummary = `🏆 TOP ${rank} CANDIDATE
 
-${result.summary}
+${result.summary.substring(0, 250)}${result.summary.length > 250 ? '...' : ''}
 
-COMPREHENSIVE EVALUATION:
-This candidate demonstrates exceptional qualifications that place them in the top ${rank} position among all analyzed CVs. Their profile shows strong alignment with the role requirements through:
+KEY HIGHLIGHTS:
+• Strong technical alignment with role requirements
+• Proven experience in relevant technologies and methodologies
+• Professional presentation and communication skills
+• ${rank <= 3 ? 'Exceptional' : 'Strong'} match for immediate consideration
 
-• TECHNICAL COMPETENCY: Based on CV analysis, they possess relevant technical skills and experience that directly match the job specifications. Their background suggests hands-on experience with industry-standard tools and methodologies.
-
-• CAREER PROGRESSION: The candidate's professional trajectory indicates consistent growth and increasing responsibilities, suggesting strong performance and leadership potential.
-
-• EDUCATIONAL FOUNDATION: Their academic background provides the theoretical knowledge necessary for success in this role, complemented by practical application.
-
-• COMMUNICATION SKILLS: The quality and structure of their CV presentation demonstrates professional communication abilities essential for collaborative work environments.
-
-• CULTURAL FIT INDICATORS: Based on their experience profile and career choices, they appear well-suited for the company culture and role expectations.
-
-RECOMMENDATION: This candidate merits immediate consideration for interview scheduling. Their combination of technical expertise, professional experience, and presentation quality makes them a standout applicant who could contribute significantly to team objectives and organizational goals.
-
-NEXT STEPS: Prioritize this candidate for initial screening call to validate technical competencies and assess cultural alignment. Consider fast-tracking through the interview process given their strong qualifications.`;
+RECOMMENDATION: Priority candidate for interview process. Fast-track for initial screening to validate technical competencies and cultural fit.`;
 
     return enhancedSummary;
   };
@@ -207,6 +197,12 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
               summary: await enhanceTopCandidateSummary(result, rank),
               cvFile: originalFile // Store the file for download
             };
+          } else if (result.status === 'completed') {
+            // For non-top candidates, keep summary shorter
+            return {
+              ...result,
+              summary: result.summary.substring(0, 300) + (result.summary.length > 300 ? '...' : '')
+            };
           }
           
           return result;
@@ -233,6 +229,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
     setError(null);
     setSearchQuery('');
     setScoreFilter('all');
+    setSelectedResult(null); // Reset selected result
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -266,6 +263,10 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const closeModal = () => {
+    setSelectedResult(null);
   };
 
   // Filter and sort results
@@ -778,7 +779,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
                                 <option value="all">All Scores</option>
                                 <option value="high">High (70+)</option>
                                 <option value="medium">Medium (40-69)</option>
-                                <option value="low">Low ({'<'}40)</option>
+                                <option value="low">Low (<40)</option>
                               </select>
                             </div>
 
@@ -996,87 +997,99 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Analysis Details: {selectedResult.fileName}
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      CV Analysis Details
                     </h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedResult(null)}
-                      icon={<X className="h-4 w-4" />}
-                    />
+                    <button
+                      onClick={closeModal}
+                      className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
+                    >
+                      <X className="h-6 w-6" />
+                    </button>
                   </div>
                   
                   <div className="p-6">
-                    {selectedResult.status === 'completed' ? (
-                      <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                              selectedResult.matchScore >= 80 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                              selectedResult.matchScore >= 60 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
-                              selectedResult.matchScore >= 40 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
-                              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                            }`}>
-                              Match Score: {selectedResult.matchScore}%
-                            </div>
-                            {getTopCandidateRank(selectedResult.fileName) <= 5 && (
-                              <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-xs font-medium rounded-full">
-                                TOP {getTopCandidateRank(selectedResult.fileName)}
-                              </span>
-                            )}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {selectedResult.fileName}
+                        </h4>
+                        {selectedResult.status === 'completed' && (
+                          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                            selectedResult.matchScore >= 80 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                            selectedResult.matchScore >= 60 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
+                            selectedResult.matchScore >= 40 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
+                            'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                          }`}>
+                            Match Score: {selectedResult.matchScore}%
                           </div>
-                          {selectedResult.cvFile && (
-                            <Button
-                              onClick={() => handleDownloadCV(selectedResult)}
-                              icon={<Download className="h-4 w-4" />}
-                              className="bg-amber-600 hover:bg-amber-700 text-white"
-                            >
-                              Download CV
-                            </Button>
-                          )}
+                        )}
+                      </div>
+                      
+                      {selectedResult.extractedTextLength && (
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                          Extracted {selectedResult.wordCount} words from {selectedResult.pageCount} pages
                         </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Tags</h4>
+                      )}
+                    </div>
+                    
+                    {selectedResult.status === 'completed' ? (
+                      <>
+                        <div className="mb-6">
+                          <h5 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                            AI Analysis Summary
+                          </h5>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-md p-4 text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                            {selectedResult.summary}
+                          </div>
+                        </div>
+                        
+                        <div className="mb-6">
+                          <h5 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                            Tags
+                          </h5>
                           <div className="flex flex-wrap gap-2">
                             {selectedResult.tags.map((tag, index) => (
                               <span
                                 key={index}
-                                className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-300"
                               >
                                 {tag}
                               </span>
                             ))}
                           </div>
                         </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Analysis Summary</h4>
-                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                            <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
-                              {selectedResult.summary}
-                            </pre>
-                          </div>
-                        </div>
-
-                        {selectedResult.extractedTextLength && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Document stats: {selectedResult.wordCount} words, {selectedResult.pageCount} pages, {selectedResult.extractedTextLength} characters
-                          </div>
-                        )}
-                      </div>
+                      </>
                     ) : (
-                      <div className="text-center py-8">
-                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                        <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                          Analysis Failed
-                        </h4>
-                        <p className="text-gray-600 dark:text-gray-400">
-                          {selectedResult.error || 'An error occurred during analysis.'}
-                        </p>
+                      <div className="mb-6">
+                        <h5 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                          Error Details
+                        </h5>
+                        <div className="bg-red-50 dark:bg-red-900/30 rounded-md p-4 text-red-700 dark:text-red-400">
+                          {selectedResult.error || 'An unknown error occurred during analysis.'}
+                        </div>
                       </div>
                     )}
+                    
+                    <div className="flex justify-between items-center">
+                      {selectedResult.cvFile && (
+                        <Button
+                          onClick={() => handleDownloadCV(selectedResult)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download CV
+                        </Button>
+                      )}
+                      
+                      <Button
+                        variant="outline"
+                        onClick={closeModal}
+                        className="ml-auto"
+                      >
+                        Close
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1084,7 +1097,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
           </div>
         </div>
       </main>
-
+      
       <Footer />
     </div>
   );

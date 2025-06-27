@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FileText, BarChart3, Download, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/button';
+import Button from '../components/ui/button';
 
 interface AnalysisJob {
   id: string;

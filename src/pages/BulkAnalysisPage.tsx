@@ -778,7 +778,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
                                 <option value="all">All Scores</option>
                                 <option value="high">High (70+)</option>
                                 <option value="medium">Medium (40-69)</option>
-                                <option value="low">Low ({'<'}40)</option>
+                                <option value="low">Low (<40)</option>
                               </select>
                             </div>
 
@@ -996,87 +996,111 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                   <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                       Analysis Details: {selectedResult.fileName}
                     </h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <button
                       onClick={() => setSelectedResult(null)}
-                      icon={<X className="h-4 w-4" />}
-                    />
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      aria-label="Close modal"
+                    >
+                      <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                    </button>
                   </div>
                   
                   <div className="p-6">
-                    {selectedResult.status === 'completed' ? (
-                      <div className="space-y-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                              selectedResult.matchScore >= 80 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                              selectedResult.matchScore >= 60 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
-                              selectedResult.matchScore >= 40 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
-                              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                            }`}>
-                              Match Score: {selectedResult.matchScore}%
-                            </div>
-                            {getTopCandidateRank(selectedResult.fileName) <= 5 && (
-                              <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-xs font-medium rounded-full">
-                                TOP {getTopCandidateRank(selectedResult.fileName)}
-                              </span>
-                            )}
-                          </div>
-                          {selectedResult.cvFile && (
-                            <Button
-                              onClick={() => handleDownloadCV(selectedResult)}
-                              icon={<Download className="h-4 w-4" />}
-                              className="bg-amber-600 hover:bg-amber-700 text-white"
-                            >
-                              Download CV
-                            </Button>
-                          )}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          selectedResult.matchScore >= 80 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                          selectedResult.matchScore >= 60 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
+                          selectedResult.matchScore >= 40 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
+                          'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                        }`}>
+                          Match Score: {selectedResult.matchScore}%
                         </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Tags</h4>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedResult.tags.map((tag, index) => (
-                              <span
-                                key={index}
-                                className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Analysis Summary</h4>
-                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                            <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
-                              {selectedResult.summary}
-                            </pre>
-                          </div>
-                        </div>
-
-                        {selectedResult.extractedTextLength && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Document stats: {selectedResult.wordCount} words, {selectedResult.pageCount} pages, {selectedResult.extractedTextLength} characters
-                          </div>
+                        
+                        {(() => {
+                          const rank = getTopCandidateRank(selectedResult.fileName);
+                          return rank <= 5 && selectedResult.status === 'completed' && (
+                            <span className="px-3 py-1 bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 text-sm font-medium rounded-full">
+                              🏆 TOP {rank}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        {selectedResult.cvFile && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleDownloadCV(selectedResult)}
+                            className="bg-orange-600 hover:bg-orange-700 text-white"
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Download CV
+                          </Button>
                         )}
                       </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                        <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                          Analysis Failed
-                        </h4>
-                        <p className="text-gray-600 dark:text-gray-400">
-                          {selectedResult.error || 'An error occurred during analysis.'}
-                        </p>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div>
+                        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Tags</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedResult.tags.map((tag, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    )}
+
+                      <div>
+                        <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Analysis Summary</h4>
+                        <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                            {selectedResult.summary}
+                          </p>
+                        </div>
+                      </div>
+
+                      {selectedResult.extractedTextLength && (
+                        <div>
+                          <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-3">Document Information</h4>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="font-medium text-gray-500 dark:text-gray-400">Text Length:</span>
+                                <p className="text-gray-900 dark:text-white">{selectedResult.extractedTextLength} characters</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-gray-500 dark:text-gray-400">Word Count:</span>
+                                <p className="text-gray-900 dark:text-white">{selectedResult.wordCount} words</p>
+                              </div>
+                              <div>
+                                <span className="font-medium text-gray-500 dark:text-gray-400">Pages:</span>
+                                <p className="text-gray-900 dark:text-white">{selectedResult.pageCount} pages</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {selectedResult.status === 'error' && selectedResult.error && (
+                        <div>
+                          <h4 className="text-lg font-medium text-red-600 dark:text-red-400 mb-3">Error Details</h4>
+                          <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                            <p className="text-red-700 dark:text-red-400">
+                              {selectedResult.error}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1084,7 +1108,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
           </div>
         </div>
       </main>
-
+      
       <Footer />
     </div>
   );

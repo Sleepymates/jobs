@@ -388,7 +388,7 @@ const BulkAnalysisPage: React.FC = () => {
                           <option value="all">All Scores</option>
                           <option value="high">High (70%+)</option>
                           <option value="medium">Medium (50-69%)</option>
-                          <option value="low">Low (<50%)</option>
+                          <option value="low">Low (&lt;50%)</option>
                         </select>
 
                         <select

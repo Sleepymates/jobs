@@ -413,7 +413,7 @@ const BulkAnalysisPage: React.FC = () => {
                             <span>{stats.scoreRanges.moderate}</span>
                           </div>
                           <div className="flex items-center justify-between text-sm">
-                            <span className="text-red-600">Poor (<40)</span>
+                            <span className="text-red-600">Poor (&lt;40)</span>
                             <span>{stats.scoreRanges.poor}</span>
                           </div>
                         </div>

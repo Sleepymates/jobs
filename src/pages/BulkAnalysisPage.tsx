@@ -10,7 +10,8 @@ import Footer from '../components/layout/Footer';
 import { FloatingPaths } from '../components/ui/background-paths';
 import { AnimatedTitle, AnimatedSubtitle } from '../components/ui/typography';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { analyzeBulkCVs, exportResultsToCSV, exportDetailedSummaries, downloadCSV, downloadTextFile, getAnalysisStats, filterResultsByScore, getTopCandidates, resetScoreTracking } from '../utils/bulkAnalysis';
+import { analyzeBulkCVs, exportResultsToCSV, exportDetailedSummaries, downloadCSV, downloadTextFile, getAnalysisStats, filterResultsByScore, getTopCandidates } from '../utils/bulkAnalysis';
+import { resetScoreTracking } from '../utils/openaiAnalysis';
 import toast from 'react-hot-toast';
 
 interface AnalysisResult {
@@ -387,7 +388,7 @@ const BulkAnalysisPage: React.FC = () => {
                           <option value="all">All Scores</option>
                           <option value="high">High (70%+)</option>
                           <option value="medium">Medium (50-69%)</option>
-                          <option value="low">Low (&lt;50%)</option>
+                          <option value="low">Low (<50%)</option>
                         </select>
 
                         <select

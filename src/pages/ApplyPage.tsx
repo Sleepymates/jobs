@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../supabase/supabaseClient';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../components/ui/Card';
-import { Button } from '../components/ui/button';
+import Button from '../components/ui/button';
 import { Input } from '../components/ui/Input';
 import { TextArea } from '../components/ui/TextArea';
 import { FileUpload } from '../components/ui/FileUpload';

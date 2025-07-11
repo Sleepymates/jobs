@@ -666,7 +666,7 @@ const ApplyPage: React.FC = () => {
                 ) : (
                   <>
                     {/* Briefcase + Company Name */}
-                    <Briefcase className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                   
                     <span className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">
                       {job?.company_name}
                     </span>

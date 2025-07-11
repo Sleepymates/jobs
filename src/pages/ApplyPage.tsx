@@ -10,7 +10,7 @@ import { FileUpload } from '../components/ui/FileUpload';
 import { BubbleInput } from '../components/ui/BubbleInput';
 import { ProgressSteps } from '../components/ui/progress-steps';
 import { StepContent } from '../components/ui/step-content';
-import { MinimalFooter } from '../components/layout/MinimalFooter';
+import MinimalFooter from '../components/layout/MinimalFooter';
 import { 
   ArrowLeft, 
   ArrowRight, 

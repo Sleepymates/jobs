@@ -711,16 +711,6 @@ const PostJobPage: React.FC = () => {
                           required
                         />
                         
-                        <FileUpload
-                          label="Header Image (Optional)"
-                          helperText="Upload a banner image for your job listing (JPG, PNG, max 5MB). This will appear at the top of your job post."
-                          accept=".jpg,.jpeg,.png"
-                          maxSize={5 * 1024 * 1024} // 5MB
-                          onChange={handleHeaderImageChange}
-                          value={formData.headerImage}
-                          id="headerImage"
-                        />
-                        
                         <BubbleInput
                           label="Requirements"
                           value={formData.requirements}
@@ -746,6 +736,15 @@ const PostJobPage: React.FC = () => {
                           onChange={handleInputChange}
                           error={errors.applicationDeadline}
                           fullWidth
+                        />
+
+                        <FileUpload
+                          label="Header Image (Optional)"
+                          accept=".jpg,.jpeg,.png"
+                          maxSize={5 * 1024 * 1024}
+                          onChange={handleHeaderImageChange}
+                          value={formData.headerImage}
+                          helperText="Upload a banner/header image for your job listing. Maximum file size: 5MB. Accepted formats: JPG, PNG"
                         />
 
                         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-6">

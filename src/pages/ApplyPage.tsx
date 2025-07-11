@@ -700,7 +700,7 @@ const ApplyPage: React.FC = () => {
                         <img
                           src={job.header_image_url}
                           alt={`${job.company_name} header`}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover object-center"
                         />
                       </div>
                     )}

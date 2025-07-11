@@ -761,7 +761,6 @@ const ApplyPage: React.FC = () => {
                                 alt="HellotoHire logo"
                                 className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
                               />
-                              <span className="text-sm sm:text-base font-medium">HellotoHire</span>
                             </div>
                             
                             <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{job.title}</AnimatedTitle>

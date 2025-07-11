@@ -750,7 +750,7 @@ const ApplyPage: React.FC = () => {
                     ) : (
                       <>
                         {/* Default Background */}
-                        <div className="w-full h-64 sm:h-80 lg:h-76 relative bg-black">  
+                        <div className="w-full h-64 sm:h-80 lg:h90 relative bg-black">  
                           <div className="absolute inset-0 bg-[url('https://i.imgur.com/7fxaf8v.jpeg')] bg-cover bg-center opacity-45"></div>
 
                           <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white h-full flex flex-col justify-end">

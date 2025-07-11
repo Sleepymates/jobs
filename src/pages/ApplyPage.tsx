@@ -753,8 +753,6 @@ const ApplyPage: React.FC = () => {
                        <div className="w-full h-64 sm:h-80 lg:h-96 relative bg-black">
   <div className="absolute inset-0 bg-[url('https://i.imgur.com/7fxaf8v.jpeg')] bg-cover bg-center opacity-30"></div>
 </div>
-
-                          
                           <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white h-full flex flex-col justify-end">
                             {/* Always show HellotoHire logo */}
                             <div className="flex items-center gap-3 mb-4">

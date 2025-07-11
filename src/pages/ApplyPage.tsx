@@ -707,22 +707,17 @@ const ApplyPage: React.FC = () => {
                           <div className="absolute inset-0 bg-gradient-to-br from-black/30 to-black/60"></div>
                           
                           <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white h-full flex flex-col justify-end">
+                            {/* Always show HellotoHire logo */}
                             <div className="flex items-center gap-3 mb-4">
-                              {job.logo_url ? (
-                                <img
-                                  src={job.logo_url}
-                                  alt={`${job.company_name} logo`}
-                                  className="h-8 w-8 sm:h-10 sm:w-10 object-contain rounded bg-white/10 p-1"
-                                />
-                              ) : (
-                                <img
-                                  src="https://i.imgur.com/Zq1JAQC.png"
-                                  alt="HellotoHire logo"
-                                  className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
-                                />
-                              )}
-                              <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold">{job.title}</AnimatedTitle>
+                              <img
+                                src="https://i.imgur.com/Zq1JAQC.png"
+                                alt="HellotoHire logo"
+                                className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
+                              />
+                              <span className="text-sm sm:text-base font-medium">HellotoHire</span>
                             </div>
+                            
+                            <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{job.title}</AnimatedTitle>
                             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mb-6">
                               <div className="flex items-center">
                                 <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
@@ -759,22 +754,17 @@ const ApplyPage: React.FC = () => {
                           <div className="absolute inset-0 bg-[url('https://i.imgur.com/PM9H0hy.jpeg')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
                           
                           <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white h-full flex flex-col justify-end">
+                            {/* Always show HellotoHire logo */}
                             <div className="flex items-center gap-3 mb-4">
-                              {job.logo_url ? (
-                                <img
-                                  src={job.logo_url}
-                                  alt={`${job.company_name} logo`}
-                                  className="h-8 w-8 sm:h-10 sm:w-10 object-contain rounded bg-white/10 p-1"
-                                />
-                              ) : (
-                                <img
-                                  src="https://i.imgur.com/Zq1JAQC.png"
-                                  alt="HellotoHire logo"
-                                  className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
-                                />
-                              )}
-                              <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold">{job.title}</AnimatedTitle>
+                              <img
+                                src="https://i.imgur.com/Zq1JAQC.png"
+                                alt="HellotoHire logo"
+                                className="h-8 w-8 sm:h-10 sm:w-10 object-contain"
+                              />
+                              <span className="text-sm sm:text-base font-medium">HellotoHire</span>
                             </div>
+                            
+                            <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{job.title}</AnimatedTitle>
                             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mb-6">
                               <div className="flex items-center">
                                 <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />

@@ -23,7 +23,7 @@ import {
 import { supabase } from '../supabase/supabaseClient';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/button';
-import { Input } from '../components/ui/Input';
+import Input from '../components/ui/Input';
 import { TextArea } from '../components/ui/TextArea';
 import FileUpload from '../components/ui/FileUpload';
 import Header from '../components/layout/Header';

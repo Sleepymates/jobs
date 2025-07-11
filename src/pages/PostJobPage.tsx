@@ -318,8 +318,6 @@ const PostJobPage: React.FC = () => {
       const job_id = generateJobId();
       
       let logoUrl = null;
-      let headerImageUrl = '';
-      
       if (formData.companyLogo) {
         const fileExt = formData.companyLogo.name.split('.').pop();
         const fileName = `${job_id}-logo.${fileExt}`;
@@ -336,19 +334,21 @@ const PostJobPage: React.FC = () => {
         logoUrl = urlData.publicUrl;
       }
 
-      // Upload header image if provided
+      let headerImageUrl = null;
       if (formData.headerImage) {
-        const headerExt = formData.headerImage.name.split('.').pop();
-        const headerFileName = `header-${job_id}-${Date.now()}.${headerExt}`;
+        const fileExt = formData.headerImage.name.split('.').pop();
+        const fileName = `${job_id}-header.${fileExt}`;
         
-        const { error: headerError } = await supabase.storage
-          .from('company-logos')
-          .upload(headerFileName, formData.headerImage);
+        const { data: fileData, error: fileError } = await supabase.storage
+          .from('header-images')
+          .upload(fileName, formData.headerImage);
         
-        if (headerError) throw new Error('Failed to upload header image');
+        if (fileError) {
+          throw new Error('Failed to upload header image');
+        }
         
-        const { data: headerUrlData } = supabase.storage.from('company-logos').getPublicUrl(headerFileName);
-        headerImageUrl = headerUrlData.publicUrl;
+        const { data: urlData } = supabase.storage.from('header-images').getPublicUrl(fileName);
+        headerImageUrl = urlData.publicUrl;
       }
 
       const allOptionalFields = {
@@ -368,6 +368,7 @@ const PostJobPage: React.FC = () => {
         job_id,
         company_name: formData.companyName,
         logo_url: logoUrl,
+        header_image_url: headerImageUrl || null,
         notify_threshold: parseInt(formData.notificationPreference, 10),
         optional_fields: allOptionalFields,
       }).select();

@@ -387,7 +387,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
                           index < currentStep 
                             ? 'bg-gray-900 dark:bg-white' 
                             : 'bg-gray-200 dark:bg-gray-700'
-                        )}
+                        )}}
                       >
                       <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
                         {selectedResult.summary.length > 400 

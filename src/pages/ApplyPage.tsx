@@ -694,22 +694,28 @@ const ApplyPage: React.FC = () => {
               >
                 <Card className="overflow-hidden">
                   <div className="relative">
-                    {/* Header Image */}
-                    {job.header_image_url && (
-                      <div className="w-full h-48 sm:h-64 overflow-hidden">
-                        <img
-                          src={job.header_image_url}
-                          alt={`${job.company_name} header`}
-                          className="w-full h-full object-cover object-center"
-                        />
-                      </div>
+                    {/* Header Section - Image or Default Background */}
+                    {job.header_image_url ? (
+                      <>
+                        {/* Custom Header Image */}
+                        <div className="w-full h-48 sm:h-64 relative">
+                          <img
+                            src={job.header_image_url}
+                            alt={`${job.company_name} header`}
+                            className="absolute inset-0 w-full h-full object-cover object-center"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-br from-black/30 to-black/60"></div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* Default Background */}
+                        <div className="w-full h-48 sm:h-64 relative bg-gradient-to-br from-black/30 to-beige-900/90">
+                          <div className="absolute inset-0 bg-[url('https://i.imgur.com/PM9H0hy.jpeg')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
+                        </div>
+                      </>
                     )}
                     
-                    <div className="absolute inset-0 bg-gradient-to-br from-black/30 to-beige-900/90">
-                      {!job.header_image_url && (
-                        <div className="absolute inset-0 bg-[url('https://i.imgur.com/PM9H0hy.jpeg')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
-                      )}
-                    </div>
                     <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white">
                       <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{job.title}</AnimatedTitle>
                       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mb-6">

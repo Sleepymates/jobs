@@ -666,7 +666,7 @@ const ApplyPage: React.FC = () => {
                 ) : (
                   <>
                     {/* Briefcase + Company Name */}
-                   
+                    <Briefcase className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 dark:text-gray-400 flex-shrink-0" />
                     <span className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white truncate">
                       {job?.company_name}
                     </span>
@@ -767,7 +767,6 @@ const ApplyPage: React.FC = () => {
                             <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{job.title}</AnimatedTitle>
                             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mb-6">
                               <div className="flex items-center">
-                                <Briefcase className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
                                 <span className="text-sm sm:text-base">{job.company_name}</span>
                               </div>
                               {job.location && (

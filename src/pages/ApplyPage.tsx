@@ -750,7 +750,7 @@ const ApplyPage: React.FC = () => {
                     ) : (
                       <>
                         {/* Default Background */}
-                        <div className="w-full h-64 sm:h-80 lg:h-96 relative bg-gradient-to-br from-black/30 to-black-900/90">
+                        <div className="w-full h-64 sm:h-80 lg:h-96 relative bg-gradient-to-br from-black/30 to-white-900/90">
                           <div className="absolute inset-0 bg-[url('https://i.imgur.com/7fxaf8v.jpeg')] bg-cover bg-center mix-blend-overlay opacity-30"></div>
                           
                           <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white h-full flex flex-col justify-end">

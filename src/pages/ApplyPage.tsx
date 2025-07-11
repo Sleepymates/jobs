@@ -694,8 +694,21 @@ const ApplyPage: React.FC = () => {
               >
                 <Card className="overflow-hidden">
                   <div className="relative">
+                    {/* Header Image */}
+                    {job.header_image_url && (
+                      <div className="w-full h-48 sm:h-64 overflow-hidden">
+                        <img
+                          src={job.header_image_url}
+                          alt={`${job.company_name} header`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                    
                     <div className="absolute inset-0 bg-gradient-to-br from-black/30 to-beige-900/90">
-                      <div className="absolute inset-0 bg-[url('https://i.imgur.com/PM9H0hy.jpeg')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
+                      {!job.header_image_url && (
+                        <div className="absolute inset-0 bg-[url('https://i.imgur.com/PM9H0hy.jpeg')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
+                      )}
                     </div>
                     <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white">
                       <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{job.title}</AnimatedTitle>

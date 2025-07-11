@@ -23,6 +23,7 @@ export interface Database {
           job_id: string
           company_name: string
           logo_url: string | null
+          header_image_url: string | null
           notify_threshold: number | null
           created_at: string
         }
@@ -39,6 +40,7 @@ export interface Database {
           job_id: string
           company_name: string
           logo_url?: string | null
+          header_image_url?: string | null
           notify_threshold?: number | null
           created_at?: string
         }
@@ -55,6 +57,7 @@ export interface Database {
           job_id?: string
           company_name?: string
           logo_url?: string | null
+          header_image_url?: string | null
           notify_threshold?: number | null
           created_at?: string
         }

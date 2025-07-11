@@ -37,6 +37,7 @@ const PostJobPage: React.FC = () => {
   const [formData, setFormData] = useState({
     jobTitle: '',
     jobDescription: '',
+    headerImage: null as File | null,
     requirements: [] as string[],
     keywords: [] as string[],
     applicationDeadline: '',
@@ -180,6 +181,10 @@ const PostJobPage: React.FC = () => {
   const handleLogoChange = (file: File | null) => {
     setFormData({
       ...formData,
+
+  const handleHeaderImageChange = (file: File | null) => {
+    setFormData(prev => ({ ...prev, headerImage: file }));
+  };
       companyLogo: file,
     });
     
@@ -415,6 +420,18 @@ const PostJobPage: React.FC = () => {
             <div className="absolute inset-0 pointer-events-none">
               <FloatingPaths position={1} />
               <FloatingPaths position={-1} />
+
+              <div>
+                <FileUpload
+                  label="Header Image (Optional)"
+                  accept=".jpg,.jpeg,.png"
+                  maxSize={5 * 1024 * 1024} // 5MB
+                  onChange={handleHeaderImageChange}
+                  value={formData.headerImage}
+                  error={errors.headerImage}
+                  helperText="Upload a banner/header image for your job listing. Maximum file size: 5MB. Accepted formats: JPG, PNG"
+                />
+              </div>
             </div>
 
             <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-24">

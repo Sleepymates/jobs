@@ -993,8 +993,12 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
 
             {/* Result Detail Modal */}
             {selectedResult && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative z-[10000]"
+                >
                   <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                       Analysis Details: {selectedResult.fileName}
@@ -1080,7 +1084,7 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
                       </div>
                     )}
                   </div>
-                </div>
+                </motion.div>
               </div>
             )}
           </div>

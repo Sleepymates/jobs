@@ -386,8 +386,10 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
                         <div className={`ml-8 w-16 h-0.5 ${
                           index < currentStep 
                             ? 'bg-gray-900 dark:bg-white' 
-                            : 'bg-gray-300 dark:bg-gray-600'
-                        }`} />
+                      <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans">
+                        {selectedResult.summary.length > 400 
+                          ? selectedResult.summary.substring(0, 400) + '...' 
+                          : selectedResult.summary}
                       )}
                     </div>
                   ))}

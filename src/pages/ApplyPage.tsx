@@ -750,8 +750,18 @@ const ApplyPage: React.FC = () => {
                     ) : (
                       <>
                         {/* Default Background */}
-                        <div className="w-full h-64 sm:h-80 lg:h-96 relative bg-gradient-to-br from-black/90 to-black-900/90"> 
-                          <div className="absolute inset-0 bg-[url('https://i.imgur.com/7fxaf8v.jpeg')] bg-cover bg-center mix-blend-overlay opacity-10"></div>
+                       <div className="w-full h-64 sm:h-80 lg:h-96 relative bg-black">
+  <div className="absolute inset-0">
+    <div
+      className="w-full h-full bg-cover bg-center"
+      style={{
+        backgroundImage: "url('https://i.imgur.com/7fxaf8v.jpeg')",
+        mixBlendMode: 'overlay',
+        opacity: 0.1,
+      }}
+    ></div>
+  </div>
+</div>
                           
                           <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white h-full flex flex-col justify-end">
                             {/* Always show HellotoHire logo */}

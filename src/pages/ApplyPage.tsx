@@ -731,15 +731,7 @@ const ApplyPage: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 sm:mb-8">
-                        <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
-                          🤖 AI-Powered Application Process
-                        </h3>
-                        <p className="text-sm text-blue-700 dark:text-blue-400">
-                          Our AI will analyze your CV and generate 3 personalized follow-up questions based on your actual experience and background. 
-                          This helps us understand your unique qualifications better.
-                        </p>
-                      </div>
+            
 
                       <Button
                         size="lg"

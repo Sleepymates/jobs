@@ -340,14 +340,14 @@ const PostJobPage: React.FC = () => {
         const fileName = `${job_id}-header.${fileExt}`;
         
         const { data: fileData, error: fileError } = await supabase.storage
-          .from('header-images')
+          .from('company-logos')
           .upload(fileName, formData.headerImage);
         
         if (fileError) {
           throw new Error('Failed to upload header image');
         }
         
-        const { data: urlData } = supabase.storage.from('header-images').getPublicUrl(fileName);
+        const { data: urlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
         headerImageUrl = urlData.publicUrl;
       }
 

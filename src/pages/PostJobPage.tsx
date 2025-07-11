@@ -45,7 +45,6 @@ const PostJobPage: React.FC = () => {
     notificationPreference: '0',
     companyName: '',
     companyLogo: null as File | null,
-    headerImageFile: null as File | null,
     optionalFields: {
       age: false,
       location: false,
@@ -192,13 +191,6 @@ const PostJobPage: React.FC = () => {
     }
   };
 
-  const handleHeaderImageChange = (file: File | null) => {
-    setFormData({
-      ...formData,
-      headerImageFile: file,
-    });
-  };
-
   const addCustomField = () => {
     if (newCustomField.trim() && formData.customFields.length < 3) {
       setFormData({
@@ -337,28 +329,6 @@ const PostJobPage: React.FC = () => {
         logoUrl = urlData.publicUrl;
       }
 
-      // Upload header image if provided
-      let headerImageUrl = '';
-      if (formData.headerImageFile) {
-        const fileExt = formData.headerImageFile.name.split('.').pop();
-        const fileName = `header-${job_id}-${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('job-headers')
-          .upload(fileName, formData.headerImageFile);
-        
-        if (uploadError) {
-          console.error('Header image upload error:', uploadError);
-          throw new Error('Failed to upload header image');
-        }
-        
-        const { data: urlData } = supabase.storage
-          .from('job-headers')
-          .getPublicUrl(fileName);
-        
-        headerImageUrl = urlData.publicUrl;
-      }
-
       const allOptionalFields = {
         ...formData.optionalFields,
         custom_fields: formData.customFields,
@@ -376,7 +346,6 @@ const PostJobPage: React.FC = () => {
         job_id,
         company_name: formData.companyName,
         logo_url: logoUrl,
-        header_image_url: headerImageUrl || null,
         notify_threshold: parseInt(formData.notificationPreference, 10),
         optional_fields: allOptionalFields,
       }).select();
@@ -767,15 +736,6 @@ const PostJobPage: React.FC = () => {
                           value={formData.companyLogo}
                           error={errors.companyLogo}
                           helperText="Maximum file size: 2MB. Accepted formats: JPG, PNG"
-                        />
-
-                        <FileUpload
-                          label="Header Image (Optional)"
-                          accept="image/*"
-                          maxSize={5 * 1024 * 1024} // 5MB
-                          onChange={handleHeaderImageChange}
-                          value={formData.headerImageFile}
-                          helperText="Upload a custom header image for your job posting (max 5MB). Recommended size: 1200x400px"
                         />
                       </StepContent>
 

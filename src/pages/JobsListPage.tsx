@@ -174,9 +174,11 @@ const JobsListPage: React.FC = () => {
                             className="h-12 w-12 object-contain rounded-md mr-4"
                           />
                         ) : (
-                          <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-md flex items-center justify-center mr-4">
-                            <Briefcase className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                          </div>
+                          <img
+                            src="https://i.imgur.com/Zq1JAQC.png"
+                            alt="HellotoHire logo"
+                            className="h-12 w-12 object-contain rounded-md mr-4"
+                          />
                         )}
                         
                         <div>

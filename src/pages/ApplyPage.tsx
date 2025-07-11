@@ -695,7 +695,11 @@ const ApplyPage: React.FC = () => {
                 <Card className="overflow-hidden">
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-black/30 to-beige-900/90">
-                      <div className="absolute inset-0 bg-[url('https://i.imgur.com/PM9H0hy.jpeg')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
+                      {job.header_image_url ? (
+                        <div className="absolute inset-0 bg-cover bg-center mix-blend-overlay opacity-20" style={{ backgroundImage: `url(${job.header_image_url})` }}></div>
+                      ) : (
+                        <div className="absolute inset-0 bg-[url('https://i.imgur.com/PM9H0hy.jpeg')] bg-cover bg-center mix-blend-overlay opacity-20"></div>
+                      )}
                     </div>
                     <div className="relative px-4 sm:px-8 py-8 sm:py-12 text-white">
                       <AnimatedTitle className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4">{job.title}</AnimatedTitle>
@@ -719,14 +723,6 @@ const ApplyPage: React.FC = () => {
                       </div>
 
                       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 sm:mb-8">
-                        <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
-                          🤖 AI-Powered Application Process
-                        </h3>
-                        <p className="text-sm text-blue-700 dark:text-blue-400">
-                          Our AI will analyze your CV and generate 3 personalized follow-up questions based on your actual experience and background. 
-                          This helps us understand your unique qualifications better.
-                        </p>
-                      </div>
 
                       <Button
                         size="lg"
@@ -930,10 +926,10 @@ const ApplyPage: React.FC = () => {
                         <div className="space-y-6">
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
                             <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
-                              🤖 AI-Powered Analysis
+                              📄 CV Upload Required
                             </h3>
                             <p className="text-sm text-blue-700 dark:text-blue-400">
-                              Our AI will analyze your uploaded CV content to generate exactly 3 personalized follow-up questions based on your actual experience, skills, and background.
+                              Please upload your CV in PDF or DOCX format. We'll use this to better understand your background and experience.
                             </p>
                           </div>
 

@@ -993,11 +993,11 @@ NEXT STEPS: Prioritize this candidate for initial screening call to validate tec
 
             {/* Result Detail Modal */}
             {selectedResult && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]">
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-4 pt-32 z-[9999] overflow-y-auto">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative z-[10000]"
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[calc(100vh-8rem)] overflow-y-auto z-[10000] mt-4"
                 >
                   <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white">

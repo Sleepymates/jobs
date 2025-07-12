@@ -27,11 +27,6 @@ type AIAnalysisResult = {
   matchScore?: number;
   summary?: string;
   tags?: string[];
-  tokenUsage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  } | null;
 };
 
 /**
@@ -217,19 +212,13 @@ Respond in JSON format:
     console.log('✅ Received response from OpenAI');
     console.log('📄 Raw response:', content);
 
-    // Extract token usage information
-    const tokenUsage = completion.usage;
-    console.log('📊 Token usage:', tokenUsage);
     const result = JSON.parse(content);
     
     // Validate that we got exactly 3 questions
     if (!result.followupQuestions || !Array.isArray(result.followupQuestions) || result.followupQuestions.length !== 3) {
       console.warn('❌ AI did not return exactly 3 questions, using intelligent fallback');
       const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
-      return { 
-        followupQuestions: fallbackQuestions,
-        tokenUsage: tokenUsage || null
-      };
+      return { followupQuestions: fallbackQuestions };
     }
 
     // Enhanced validation for personalized questions
@@ -241,10 +230,7 @@ Respond in JSON format:
     if (validQuestions.length < 3) {
       console.warn('❌ Questions not sufficiently personalized, using intelligent fallback');
       const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
-      return { 
-        followupQuestions: fallbackQuestions,
-        tokenUsage: tokenUsage || null
-      };
+      return { followupQuestions: fallbackQuestions };
     }
 
     console.log('✅ Generated 3 personalized follow-up questions:');
@@ -252,10 +238,7 @@ Respond in JSON format:
       console.log(`   ${i + 1}. ${q}`);
     });
 
-    return {
-      ...result,
-      tokenUsage: tokenUsage || null
-    } as AIAnalysisResult;
+    return result as AIAnalysisResult;
   } catch (error) {
     console.error('❌ Error analyzing applicant with OpenAI:', error);
     
@@ -280,7 +263,6 @@ Respond in JSON format:
     
     return {
       followupQuestions: fallbackQuestions,
-      tokenUsage: null
     };
   }
 };
@@ -765,9 +747,6 @@ Format your response as JSON:
 
     console.log('✅ Received final evaluation from OpenAI');
 
-    // Extract token usage information
-    const tokenUsage = completion.usage;
-    console.log('📊 Final evaluation token usage:', tokenUsage);
     const result = JSON.parse(content);
     
     // Validate the response
@@ -794,7 +773,6 @@ Format your response as JSON:
       matchScore: Math.round(result.matchScore),
       summary: result.summary,
       tags: result.tags.slice(0, 8),
-      tokenUsage: tokenUsage || null
     };
   } catch (error) {
     console.error('❌ Error evaluating applicant with OpenAI:', error);
@@ -818,7 +796,6 @@ Format your response as JSON:
       matchScore: fallbackScore,
       summary: fallbackSummary,
       tags: fallbackTags,
-      tokenUsage: null
     };
   }
 };

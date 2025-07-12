@@ -120,11 +120,6 @@ const ApplyPage: React.FC = () => {
         
         const { data, error: jobError } = await supabase
           .from('jobs')
-          .update({
-            openai_prompt_tokens: analysisResult.tokenUsage?.prompt_tokens || 0,
-            openai_completion_tokens: analysisResult.tokenUsage?.completion_tokens || 0,
-            openai_total_tokens: analysisResult.tokenUsage?.total_tokens || 0
-          })
           .select('*')
           .eq('job_id', jobId)
           .single();
@@ -310,8 +305,11 @@ const ApplyPage: React.FC = () => {
     try {
       let cvUrl = '';
       if (formData.cvFile) {
-        const { data: fileData, error: fileError } = await supabase.storage
-          .from('cv-uploads')
+        const fileExt = formData.cvFile.name.split('.').pop();
+        const fileName = `${jobId}-${Date.now()}.${fileExt}`;
+        
+        const { error: fileError } = await supabase.storage
+          .from('cv-files')
           .upload(fileName, formData.cvFile);
         
         if (fileError) throw new Error('Failed to upload CV file');
@@ -369,28 +367,6 @@ const ApplyPage: React.FC = () => {
           ai_summary: evaluation.summary,
         });
 
-        // Calculate total token usage from both API calls
-        let totalPromptTokens = 0;
-        let totalCompletionTokens = 0;
-        let totalTokens = 0;
-
-        if (analysisResult.tokenUsage) {
-          totalPromptTokens += analysisResult.tokenUsage.prompt_tokens || 0;
-          totalCompletionTokens += analysisResult.tokenUsage.completion_tokens || 0;
-          totalTokens += analysisResult.tokenUsage.total_tokens || 0;
-        }
-
-        if (evaluation.tokenUsage) {
-          totalPromptTokens += evaluation.tokenUsage.prompt_tokens || 0;
-          totalCompletionTokens += evaluation.tokenUsage.completion_tokens || 0;
-          totalTokens += evaluation.tokenUsage.total_tokens || 0;
-        }
-
-        console.log('📊 Total token usage for application:', {
-          promptTokens: totalPromptTokens,
-          completionTokens: totalCompletionTokens,
-          totalTokens: totalTokens
-        });
       if (applicantError) throw applicantError;
 
       await supabase.rpc('increment_applicant_count', { job_id_param: jobId });

@@ -64,48 +64,61 @@ export const analyzeApplicant = async (
   applicantData: ApplicantData,
   jobData: JobData
 ): Promise<AIAnalysisResult> => {
+  console.log('🚀 analyzeApplicant called with:', {
+    applicantName: applicantData.fullName,
+    hasCV: !!applicantData.cvFile,
+    jobTitle: jobData.title,
+    apiKeyExists: !!import.meta.env.VITE_OPENAI_API_KEY
+  });
+
   try {
-    console.log('🔍 Starting comprehensive CV analysis...');
-    
     // Check if API key is available
     if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      console.error('❌ OpenAI API key not found in environment variables');
       throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
+    
+    console.log('✅ OpenAI API key found');
     
     // Extract text from the actual uploaded CV file
     let cvText = '';
     if (applicantData.cvFile) {
       console.log('📄 Extracting text from uploaded CV file...');
+      console.log('📄 CV file details:', {
+        name: applicantData.cvFile.name,
+        size: applicantData.cvFile.size,
+        type: applicantData.cvFile.type
+      });
+      
       cvText = await extractCVText(applicantData.cvFile);
       console.log(`✅ Extracted ${cvText.length} characters from CV`);
-      console.log(`📄 CV content preview: ${cvText.substring(0, 500)}...`);
+      console.log(`📄 CV content preview: ${cvText.substring(0, 200)}...`);
     } else {
+      console.error('❌ No CV file provided for analysis');
       throw new Error('No CV file provided for analysis');
     }
 
     // Enhanced CV content analysis
     const cvAnalysis = performDetailedCVAnalysis(cvText);
-    console.log('📊 Detailed CV Analysis:', cvAnalysis);
+    console.log('📊 CV Analysis Results:', {
+      hasRealContent: cvAnalysis.hasRealContent,
+      textLength: cvText.length,
+      companiesFound: cvAnalysis.companies.length,
+      technologiesFound: cvAnalysis.technologies.length
+    });
 
     // Check if we have meaningful CV content
     const hasRealContent = cvAnalysis.hasRealContent && cvText.length > 200 && 
                           !cvText.includes('could not be automatically extracted');
 
-    console.log(`🔍 CV Analysis Results:
-    - Has real content: ${hasRealContent}
-    - Text length: ${cvText.length}
-    - Companies found: ${cvAnalysis.companies.length}
-    - Technologies found: ${cvAnalysis.technologies.length}
-    - Roles found: ${cvAnalysis.roles.length}
-    - Education found: ${cvAnalysis.education.length}
-    - Projects found: ${cvAnalysis.projects.length}`);
+    console.log(`🔍 Content Analysis: hasRealContent=${hasRealContent}, textLength=${cvText.length}`);
 
     let prompt: string;
 
     if (!hasRealContent) {
       console.log('⚠️ CV content appears to be fallback text, generating questions based on job requirements');
       
-      prompt = `You are an expert HR interviewer. The candidate's CV could not be automatically processed, so generate 3 interview questions based on the job requirements and applicant information.
+      prompt = `You are an expert HR interviewer. Generate exactly 3 interview questions based on the job requirements.
 
 JOB POSITION: ${jobData.title}
 JOB DESCRIPTION: ${jobData.description}
@@ -119,162 +132,137 @@ ${applicantData.education ? `- Education: ${applicantData.education}` : ''}
 
 ${applicantData.motivationText ? `MOTIVATION LETTER: ${applicantData.motivationText}` : ''}
 
-Generate 3 thoughtful interview questions that assess their experience relevant to the ${jobData.title} role.
+Generate exactly 3 thoughtful interview questions for this ${jobData.title} role.
 
-Respond in JSON format:
+Respond with ONLY valid JSON in this exact format:
 {
   "followupQuestions": [
-    "Question 1 about relevant experience for ${jobData.title}",
-    "Question 2 about technical skills and problem-solving", 
-    "Question 3 about motivation and career alignment"
+    "Question 1 about relevant experience",
+    "Question 2 about technical skills", 
+    "Question 3 about motivation"
   ]
 }`;
     } else {
       // We have actual CV content - generate highly personalized questions
       console.log('✅ CV content extracted successfully, generating HIGHLY PERSONALIZED questions');
       
-      prompt = `You are an expert HR interviewer who has just read this candidate's CV in detail. You MUST generate EXACTLY 3 highly specific, personalized questions that prove you read their actual CV content.
-
-CRITICAL INSTRUCTIONS:
-1. You MUST reference SPECIFIC details from the CV content below
-2. Each question MUST mention actual companies, technologies, projects, or experiences from their CV
-3. Questions should be conversational and show you read their background carefully
-4. NEVER use generic questions - every question must be tailored to THIS specific candidate
-5. If you see company names, mention them specifically
-6. If you see specific technologies, ask about them directly
-7. If you see projects or achievements, reference them by name
+      prompt = `You are an expert HR interviewer. Generate exactly 3 personalized questions based on this candidate's CV.
 
 JOB POSITION: ${jobData.title}
 JOB DESCRIPTION: ${jobData.description}
 ${jobData.requirements ? `JOB REQUIREMENTS: ${jobData.requirements}` : ''}
 
 CANDIDATE: ${applicantData.fullName}
-${applicantData.age ? `Age: ${applicantData.age}` : ''}
-${applicantData.location ? `Location: ${applicantData.location}` : ''}
-${applicantData.education ? `Education: ${applicantData.education}` : ''}
 
-COMPLETE CV CONTENT (READ EVERY WORD AND REFERENCE SPECIFIC DETAILS):
+
+CV CONTENT:
 ${cvText}
 
 ${applicantData.motivationText ? `MOTIVATION LETTER: ${applicantData.motivationText}` : ''}
 
-DETAILED CV ANALYSIS FOR REFERENCE:
-- Companies mentioned: ${cvAnalysis.companies.join(', ') || 'None clearly identified'}
-- Technologies/Skills: ${cvAnalysis.technologies.join(', ') || 'None clearly identified'}
-- Job roles/titles: ${cvAnalysis.roles.join(', ') || 'None clearly identified'}
-- Projects/Achievements: ${cvAnalysis.projects.join(', ') || 'None clearly identified'}
-- Education details: ${cvAnalysis.education.join(', ') || 'None clearly identified'}
-- Years of experience: ${cvAnalysis.experienceYears || 'Not specified'}
+Generate exactly 3 personalized questions based on their background.
 
-MANDATORY REQUIREMENTS FOR YOUR QUESTIONS:
-1. Each question MUST reference specific details from the CV content above
-2. Use actual company names, project names, or technologies mentioned in the CV
-3. Make questions conversational like "I see you worked at [Company Name]..." or "Your CV mentions [Technology]..."
-4. Each question should focus on different aspects of their experience
-5. Questions should be relevant to the ${jobData.title} position
-
-EXAMPLES OF GOOD PERSONALIZED QUESTIONS (adapt to this candidate's actual background):
-${cvAnalysis.companies.length > 0 ? `- "I see you worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project you handled there?"` : ''}
-${cvAnalysis.technologies.length > 0 ? `- "Your CV mentions experience with ${cvAnalysis.technologies[0]}. Can you walk me through a specific project where you used this technology?"` : ''}
-${cvAnalysis.projects.length > 0 ? `- "You mentioned working on ${cvAnalysis.projects[0]}. What was the most interesting technical challenge you faced?"` : ''}
-
-Generate exactly 3 questions that reference specific details from this candidate's CV.
-
-Respond in JSON format:
+Respond with ONLY valid JSON in this exact format:
 {
   "followupQuestions": [
-    "Question 1 with specific CV reference (mention actual company/technology/project)",
-    "Question 2 with different specific CV reference", 
-    "Question 3 with another specific CV reference"
+    "Question 1 based on their experience",
+    "Question 2 about their skills", 
+    "Question 3 about their background"
   ]
 }`;
     }
 
-    console.log('🤖 Sending detailed CV analysis to OpenAI for personalized question generation...');
+    console.log('🤖 Sending request to OpenAI...');
+    console.log('📝 Prompt length:', prompt.length);
     
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You must reference specific details from the candidate\'s background to prove you read their CV thoroughly. Never use generic questions.'
-        },
-        { 
-          role: 'user', 
-          content: prompt 
-        }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.1, // Very low temperature for specific, consistent responses
-      max_tokens: 1000,
-    });
+    let completion;
+    try {
+      completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert HR interviewer. Generate exactly 3 interview questions. Always respond with valid JSON only.'
+          },
+          { 
+            role: 'user', 
+            content: prompt 
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+        max_tokens: 800,
+      });
+      
+      console.log('✅ OpenAI API call successful');
+    } catch (apiError) {
+      console.error('❌ OpenAI API call failed:', apiError);
+      throw apiError;
+    }
 
     // Extract token usage from the response
-    const tokenUsage = completion.usage;
-    console.log('📊 OpenAI Token Usage:', {
-      prompt_tokens: tokenUsage?.prompt_tokens || 0,
-      completion_tokens: tokenUsage?.completion_tokens || 0,
-      total_tokens: tokenUsage?.total_tokens || 0
-    });
+    const tokenUsage = completion.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+    console.log('📊 Token Usage:', tokenUsage);
 
     const content = completion.choices[0]?.message?.content;
     if (!content) {
+      console.error('❌ No content returned from OpenAI');
       throw new Error('No content returned from OpenAI');
     }
 
-    console.log('✅ Received response from OpenAI');
-    console.log('📄 Raw response:', content);
+    console.log('📄 OpenAI Response:', content.substring(0, 200) + '...');
 
-    const result = JSON.parse(content);
+    let result;
+    try {
+      result = JSON.parse(content);
+      console.log('✅ Successfully parsed JSON response');
+    } catch (parseError) {
+      console.error('❌ Failed to parse JSON:', parseError);
+      console.error('Raw content:', content);
+      throw new Error('Invalid JSON response from OpenAI');
+    }
     
     // Validate that we got exactly 3 questions
     if (!result.followupQuestions || !Array.isArray(result.followupQuestions) || result.followupQuestions.length !== 3) {
-      console.warn('❌ AI did not return exactly 3 questions, using intelligent fallback');
+      console.warn('❌ Invalid questions format, using fallback');
+      console.warn('Received:', result);
       const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
       return { 
         followupQuestions: fallbackQuestions,
-        tokenUsage: {
-          prompt_tokens: tokenUsage?.prompt_tokens || 0,
-          completion_tokens: tokenUsage?.completion_tokens || 0,
-          total_tokens: tokenUsage?.total_tokens || 0
-        }
+        tokenUsage
       };
     }
 
-    // Enhanced validation for personalized questions
+    // Basic validation for questions
     const validQuestions = result.followupQuestions.filter(q => 
-      q.length > 30 && q.length < 300 && q.includes('?') && 
-      (hasRealContent ? isPersonalizedQuestion(q, cvAnalysis) : true)
+      typeof q === 'string' && q.length > 20 && q.length < 500 && q.includes('?')
     );
 
     if (validQuestions.length < 3) {
-      console.warn('❌ Questions not sufficiently personalized, using intelligent fallback');
+      console.warn('❌ Questions failed validation, using fallback');
       const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
       return { 
         followupQuestions: fallbackQuestions,
-        tokenUsage: {
-          prompt_tokens: tokenUsage?.prompt_tokens || 0,
-          completion_tokens: tokenUsage?.completion_tokens || 0,
-          total_tokens: tokenUsage?.total_tokens || 0
-        }
+        tokenUsage
       };
     }
 
-    console.log('✅ Generated 3 personalized follow-up questions:');
-    result.followupQuestions.forEach((q, i) => {
+    console.log('✅ Successfully generated 3 follow-up questions:');
+    validQuestions.forEach((q, i) => {
       console.log(`   ${i + 1}. ${q}`);
     });
 
     return {
-      ...result,
-      tokenUsage: {
-        prompt_tokens: tokenUsage?.prompt_tokens || 0,
-        completion_tokens: tokenUsage?.completion_tokens || 0,
-        total_tokens: tokenUsage?.total_tokens || 0
-      }
-    } as AIAnalysisResult;
+      followupQuestions: validQuestions,
+      tokenUsage
+    };
+    
   } catch (error) {
     console.error('❌ Error analyzing applicant with OpenAI:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
     
     // Enhanced fallback
     let cvText = '';
@@ -297,11 +285,7 @@ Respond in JSON format:
     
     return {
       followupQuestions: fallbackQuestions,
-      tokenUsage: {
-        prompt_tokens: 0,
-        completion_tokens: 0,
-        total_tokens: 0
-      }
+      tokenUsage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
     };
   }
 };

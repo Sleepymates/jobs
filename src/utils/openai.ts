@@ -216,6 +216,7 @@ Respond in JSON format:
       completion_tokens: tokenUsage?.completion_tokens || 0,
       total_tokens: tokenUsage?.total_tokens || 0
     });
+
     const content = completion.choices[0]?.message?.content;
     if (!content) {
       throw new Error('No content returned from OpenAI');

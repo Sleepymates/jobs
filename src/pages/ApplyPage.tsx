@@ -121,9 +121,9 @@ const ApplyPage: React.FC = () => {
         const { data, error: jobError } = await supabase
           .from('jobs')
           .update({
-            openai_prompt_tokens: totalPromptTokens,
-            openai_completion_tokens: totalCompletionTokens,
-            openai_total_tokens: totalTokens
+            openai_prompt_tokens: analysisResult.tokenUsage?.prompt_tokens || 0,
+            openai_completion_tokens: analysisResult.tokenUsage?.completion_tokens || 0,
+            openai_total_tokens: analysisResult.tokenUsage?.total_tokens || 0
           })
           .select('*')
           .eq('job_id', jobId)

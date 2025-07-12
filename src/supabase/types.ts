@@ -77,6 +77,9 @@ export interface Database {
           ai_score: number | null
           ai_summary: string | null
           created_at: string
+          openai_prompt_tokens: number | null
+          openai_completion_tokens: number | null
+          openai_total_tokens: number | null
         }
         Insert: {
           id?: number
@@ -92,6 +95,9 @@ export interface Database {
           ai_score?: number | null
           ai_summary?: string | null
           created_at?: string
+          openai_prompt_tokens?: number | null
+          openai_completion_tokens?: number | null
+          openai_total_tokens?: number | null
         }
         Update: {
           id?: number
@@ -107,6 +113,9 @@ export interface Database {
           ai_score?: number | null
           ai_summary?: string | null
           created_at?: string
+          openai_prompt_tokens?: number | null
+          openai_completion_tokens?: number | null
+          openai_total_tokens?: number | null
         }
       }
       analytics: {

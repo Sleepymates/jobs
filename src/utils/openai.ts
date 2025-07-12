@@ -27,6 +27,11 @@ type AIAnalysisResult = {
   matchScore?: number;
   summary?: string;
   tags?: string[];
+  tokenUsage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 };
 
 /**
@@ -204,6 +209,13 @@ Respond in JSON format:
       max_tokens: 1000,
     });
 
+    // Extract token usage from the response
+    const tokenUsage = completion.usage;
+    console.log('📊 OpenAI Token Usage:', {
+      prompt_tokens: tokenUsage?.prompt_tokens || 0,
+      completion_tokens: tokenUsage?.completion_tokens || 0,
+      total_tokens: tokenUsage?.total_tokens || 0
+    });
     const content = completion.choices[0]?.message?.content;
     if (!content) {
       throw new Error('No content returned from OpenAI');
@@ -218,7 +230,14 @@ Respond in JSON format:
     if (!result.followupQuestions || !Array.isArray(result.followupQuestions) || result.followupQuestions.length !== 3) {
       console.warn('❌ AI did not return exactly 3 questions, using intelligent fallback');
       const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
-      return { followupQuestions: fallbackQuestions };
+      return { 
+        followupQuestions: fallbackQuestions,
+        tokenUsage: {
+          prompt_tokens: tokenUsage?.prompt_tokens || 0,
+          completion_tokens: tokenUsage?.completion_tokens || 0,
+          total_tokens: tokenUsage?.total_tokens || 0
+        }
+      };
     }
 
     // Enhanced validation for personalized questions
@@ -230,7 +249,14 @@ Respond in JSON format:
     if (validQuestions.length < 3) {
       console.warn('❌ Questions not sufficiently personalized, using intelligent fallback');
       const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
-      return { followupQuestions: fallbackQuestions };
+      return { 
+        followupQuestions: fallbackQuestions,
+        tokenUsage: {
+          prompt_tokens: tokenUsage?.prompt_tokens || 0,
+          completion_tokens: tokenUsage?.completion_tokens || 0,
+          total_tokens: tokenUsage?.total_tokens || 0
+        }
+      };
     }
 
     console.log('✅ Generated 3 personalized follow-up questions:');
@@ -238,7 +264,14 @@ Respond in JSON format:
       console.log(`   ${i + 1}. ${q}`);
     });
 
-    return result as AIAnalysisResult;
+    return {
+      ...result,
+      tokenUsage: {
+        prompt_tokens: tokenUsage?.prompt_tokens || 0,
+        completion_tokens: tokenUsage?.completion_tokens || 0,
+        total_tokens: tokenUsage?.total_tokens || 0
+      }
+    } as AIAnalysisResult;
   } catch (error) {
     console.error('❌ Error analyzing applicant with OpenAI:', error);
     
@@ -263,6 +296,11 @@ Respond in JSON format:
     
     return {
       followupQuestions: fallbackQuestions,
+      tokenUsage: {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0
+      }
     };
   }
 };
@@ -740,6 +778,13 @@ Format your response as JSON:
       temperature: 0.1,
     });
 
+    // Extract token usage from the response
+    const tokenUsage = completion.usage;
+    console.log('📊 OpenAI Token Usage (Evaluation):', {
+      prompt_tokens: tokenUsage?.prompt_tokens || 0,
+      completion_tokens: tokenUsage?.completion_tokens || 0,
+      total_tokens: tokenUsage?.total_tokens || 0
+    });
     const content = completion.choices[0]?.message?.content;
     if (!content) {
       throw new Error('No content returned from OpenAI');
@@ -773,6 +818,11 @@ Format your response as JSON:
       matchScore: Math.round(result.matchScore),
       summary: result.summary,
       tags: result.tags.slice(0, 8),
+      tokenUsage: {
+        prompt_tokens: tokenUsage?.prompt_tokens || 0,
+        completion_tokens: tokenUsage?.completion_tokens || 0,
+        total_tokens: tokenUsage?.total_tokens || 0
+      }
     };
   } catch (error) {
     console.error('❌ Error evaluating applicant with OpenAI:', error);
@@ -796,6 +846,11 @@ Format your response as JSON:
       matchScore: fallbackScore,
       summary: fallbackSummary,
       tags: fallbackTags,
+      tokenUsage: {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0
+      }
     };
   }
 };

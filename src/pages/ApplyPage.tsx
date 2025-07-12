@@ -365,6 +365,9 @@ const ApplyPage: React.FC = () => {
           followup_answers: followupAnswers,
           ai_score: evaluation.matchScore,
           ai_summary: evaluation.summary,
+          openai_prompt_tokens: (analysisResult.tokenUsage?.prompt_tokens || 0) + (evaluation.tokenUsage?.prompt_tokens || 0),
+          openai_completion_tokens: (analysisResult.tokenUsage?.completion_tokens || 0) + (evaluation.tokenUsage?.completion_tokens || 0),
+          openai_total_tokens: (analysisResult.tokenUsage?.total_tokens || 0) + (evaluation.tokenUsage?.total_tokens || 0),
         });
 
       if (applicantError) throw applicantError;

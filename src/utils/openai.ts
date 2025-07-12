@@ -227,6 +227,8 @@ Respond with ONLY valid JSON in this exact format:
     validQuestions.forEach((q, i) => {
       console.log(`   ${i + 1}. ${q}`);
     });
+    
+    console.log('📊 Token usage for question generation:', tokenUsage);
 
     return {
       followupQuestions: validQuestions.slice(0, 3), // Ensure exactly 3 questions
@@ -397,6 +399,7 @@ Respond with valid JSON:
 
     console.log('✅ Evaluation completed successfully');
     console.log(`📊 Score: ${result.matchScore}%`);
+    console.log('📊 Token usage for evaluation:', tokenUsage);
 
     return {
       matchScore: Math.round(result.matchScore),

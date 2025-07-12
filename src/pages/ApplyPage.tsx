@@ -310,6 +310,8 @@ const ApplyPage: React.FC = () => {
     try {
       let cvUrl = '';
       if (formData.cvFile) {
+        const { data: fileData, error: fileError } = await supabase.storage
+          .from('cv-uploads')
           .upload(fileName, formData.cvFile);
         
         if (fileError) throw new Error('Failed to upload CV file');

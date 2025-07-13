@@ -290,7 +290,10 @@ export const analyzeApplicant = async (
     console.log('🚀 Starting CUSTOM CV-based question generation...');
     
     // Check if API key is available
-    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (!apiKey || apiKey === 'your_openai_api_key_here') {
+      console.error('❌ OpenAI API key not configured properly');
+      console.error('Available env vars:', Object.keys(import.meta.env));
       throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
     
@@ -500,6 +503,8 @@ export const evaluateApplicant = async (
     
     // Check if API key is available
     if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      console.error('❌ OpenAI API key not configured for evaluation');
+      console.error('Available env vars:', Object.keys(import.meta.env));
       throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
     

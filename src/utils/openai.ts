@@ -41,299 +41,73 @@ async function extractCVText(file: File): Promise<string> {
     const result = await extractTextFromFile(file);
     console.log(`✅ Successfully extracted ${result.text.length} characters from ${file.name}`);
     console.log(`📊 Word count: ${result.wordCount}, Pages: ${result.pageCount}`);
-    console.log(`📄 Preview: ${result.text.substring(0, 500)}...`);
+    console.log(`📄 CV Content Preview: ${result.text.substring(0, 1000)}...`);
     
     return result.text;
   } catch (error) {
     console.error('❌ Error extracting text from file:', error);
-    
-    // Enhanced fallback - create a meaningful message that can still be processed
-    const fallbackText = `CV document uploaded: ${file.name}. The document content could not be automatically extracted due to technical limitations, but the file has been received and is available for manual review. This may occur with image-based PDFs, password-protected documents, or certain file format variations. The applicant has provided their CV as requested, and manual review may be necessary to assess their qualifications fully.`;
-    
-    console.log('🔄 Using enhanced fallback text for processing');
-    return fallbackText;
+    throw new Error(`Failed to extract CV content: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
-export const analyzeApplicant = async (
-  applicantData: ApplicantData,
-  jobData: JobData
-): Promise<AIAnalysisResult> => {
-  try {
-    console.log('🔍 Starting comprehensive CV analysis...');
-    
-    // Check if API key is available
-    if (!import.meta.env.VITE_OPENAI_API_KEY) {
-      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
-    }
-    
-    // Log the API key to verify it's correct (first 10 chars only for security)
-    console.log('🔑 Using OpenAI API key:', import.meta.env.VITE_OPENAI_API_KEY.substring(0, 10) + '...');
-    
-    // Extract text from the actual uploaded CV file
-    let cvText = '';
-    if (applicantData.cvFile) {
-      console.log('📄 Extracting text from uploaded CV file...');
-      cvText = await extractCVText(applicantData.cvFile);
-      console.log(`✅ Extracted ${cvText.length} characters from CV`);
-      console.log(`📄 CV content preview: ${cvText.substring(0, 500)}...`);
-    } else {
-      throw new Error('No CV file provided for analysis');
-    }
-
-    // Enhanced CV content analysis
-    const cvAnalysis = performDetailedCVAnalysis(cvText);
-    console.log('📊 Detailed CV Analysis:', cvAnalysis);
-
-    // Check if we have meaningful CV content
-    const hasRealContent = cvAnalysis.hasRealContent && cvText.length > 200 && 
-                          !cvText.includes('could not be automatically extracted');
-
-    console.log(`🔍 CV Analysis Results:
-    - Has real content: ${hasRealContent}
-    - Text length: ${cvText.length}
-    - Companies found: ${cvAnalysis.companies.length}
-    - Technologies found: ${cvAnalysis.technologies.length}
-    - Roles found: ${cvAnalysis.roles.length}
-    - Education found: ${cvAnalysis.education.length}
-    - Projects found: ${cvAnalysis.projects.length}`);
-
-    // ALWAYS generate highly personalized questions based on CV content
-    console.log('✅ Generating HIGHLY PERSONALIZED questions based on CV analysis');
-    
-    const prompt = `You are an expert HR interviewer who has just read this candidate's CV in detail. You MUST generate EXACTLY 3 highly specific, personalized questions that prove you read their actual CV content.
-
-CRITICAL INSTRUCTIONS:
-1. You MUST reference SPECIFIC details from the CV content below
-2. Each question MUST mention actual companies, technologies, projects, or experiences from their CV
-3. Questions should be conversational and show you read their background carefully
-4. NEVER use generic questions - every question must be tailored to THIS specific candidate
-5. If you see company names, mention them specifically
-6. If you see specific technologies, ask about them directly
-7. If you see projects or achievements, reference them by name
-8. If CV content is limited, use the motivation letter and applicant info to create specific questions
-9. ALWAYS make questions feel personal and specific to this individual
-
-JOB POSITION: ${jobData.title}
-JOB DESCRIPTION: ${jobData.description}
-${jobData.requirements ? `JOB REQUIREMENTS: ${jobData.requirements}` : ''}
-
-CANDIDATE: ${applicantData.fullName}
-${applicantData.age ? `Age: ${applicantData.age}` : ''}
-${applicantData.location ? `Location: ${applicantData.location}` : ''}
-${applicantData.education ? `Education: ${applicantData.education}` : ''}
-
-COMPLETE CV CONTENT (READ EVERY WORD AND REFERENCE SPECIFIC DETAILS):
-${cvText}
-
-${applicantData.motivationText ? `MOTIVATION LETTER: ${applicantData.motivationText}` : ''}
-
-DETAILED CV ANALYSIS FOR REFERENCE:
-- Companies mentioned: ${cvAnalysis.companies.join(', ') || 'None clearly identified'}
-- Technologies/Skills: ${cvAnalysis.technologies.join(', ') || 'None clearly identified'}
-- Job roles/titles: ${cvAnalysis.roles.join(', ') || 'None clearly identified'}
-- Projects/Achievements: ${cvAnalysis.projects.join(', ') || 'None clearly identified'}
-- Education details: ${cvAnalysis.education.join(', ') || 'None clearly identified'}
-- Years of experience: ${cvAnalysis.experienceYears || 'Not specified'}
-
-MANDATORY REQUIREMENTS FOR YOUR QUESTIONS:
-1. Each question MUST reference specific details from the CV content above
-2. Use actual company names, project names, or technologies mentioned in the CV
-3. Make questions conversational like "I see you worked at [Company Name]..." or "Your CV mentions [Technology]..."
-4. Each question should focus on different aspects of their experience
-5. Questions should be relevant to the ${jobData.title} position
-6. If specific details are limited, reference their education, location, or motivation letter specifically
-7. NEVER ask generic questions - always personalize to THIS candidate
-
-EXAMPLES OF GOOD PERSONALIZED QUESTIONS (adapt to this candidate's actual background):
-${cvAnalysis.companies.length > 0 ? `- "I see you worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project you handled there?"` : ''}
-Generate exactly 3 questions that reference specific details from this candidate's CV.
-
-Respond in JSON format:
-{
-  "followupQuestions": [
-    "Question 1 with specific CV reference (mention actual company/technology/project)",
-    "Question 2 with different specific CV reference", 
-    "Question 3 with another specific CV reference"
-  ]
-}`;
-
-    console.log('🤖 Sending detailed CV analysis to OpenAI for personalized question generation...');
-    
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You MUST reference specific details from the candidate\'s background to prove you read their CV thoroughly. NEVER use generic questions. ALWAYS personalize every question to the specific candidate. If CV details are limited, use education, location, motivation letter, or any other available information to make questions personal and specific.'
-        },
-        { 
-          role: 'user', 
-          content: prompt 
-        }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.3, // Slightly higher for more creative personalization
-      max_tokens: 1000,
-    });
-
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('No content returned from OpenAI');
-    }
-
-    console.log('✅ Received response from OpenAI');
-    console.log('📄 Raw response:', content);
-
-    const result = JSON.parse(content);
-    
-    // Validate that we got exactly 3 questions
-    if (!result.followupQuestions || !Array.isArray(result.followupQuestions) || result.followupQuestions.length !== 3) {
-      console.warn('❌ AI did not return exactly 3 questions, using intelligent fallback');
-      const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, false, cvAnalysis);
-      return { followupQuestions: fallbackQuestions };
-    }
-
-    // Enhanced validation for personalized questions
-    const validQuestions = result.followupQuestions.filter(q => 
-      q.length > 30 && q.length < 300 && q.includes('?') && 
-      isPersonalizedQuestion(q, cvAnalysis, applicantData)
-    );
-
-    if (validQuestions.length < 3) {
-      console.warn('❌ Questions not sufficiently personalized, using intelligent fallback');
-      const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, false, cvAnalysis);
-      return { followupQuestions: fallbackQuestions };
-    }
-
-    console.log('✅ Generated 3 personalized follow-up questions:');
-    result.followupQuestions.forEach((q, i) => {
-      console.log(`   ${i + 1}. ${q}`);
-    });
-
-    return result as AIAnalysisResult;
-  } catch (error) {
-    console.error('❌ Error analyzing applicant with OpenAI:', error);
-    
-    // Enhanced fallback
-    let cvText = '';
-    let cvAnalysis = null;
-    
-    if (applicantData.cvFile) {
-      try {
-        cvText = await extractCVText(applicantData.cvFile);
-        cvAnalysis = performDetailedCVAnalysis(cvText);
-      } catch (e) {
-        console.error('Failed to extract CV for fallback:', e);
-        cvText = `CV document uploaded: ${applicantData.cvFile.name}. Document processing encountered technical difficulties.`;
-      }
-    }
-    
-    const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, false, cvAnalysis);
-    
-    return {
-      followupQuestions: fallbackQuestions,
-    };
-  }
-};
-
 /**
- * Perform detailed CV content analysis
+ * Analyze CV content and extract key information
  */
-function performDetailedCVAnalysis(cvText: string): {
+function analyzeCVContent(cvText: string): {
   companies: string[];
   technologies: string[];
-  experienceLevel: string;
-  experienceYears: string;
-  education: string[];
-  projects: string[];
   roles: string[];
-  hasRealContent: boolean;
+  projects: string[];
+  education: string[];
+  experience: string[];
+  skills: string[];
+  achievements: string[];
 } {
-  const cvLower = cvText.toLowerCase();
+  console.log('🔍 Analyzing CV content for specific details...');
   
-  // Check if this is real CV content or fallback text
-  const hasRealContent = !cvText.includes('could not be automatically extracted') && 
-                        !cvText.includes('manual review') && 
-                        cvText.length > 200 &&
-                        (cvLower.includes('experience') || cvLower.includes('work') || 
-                         cvLower.includes('education') || cvLower.includes('skills'));
-  
-  console.log(`🔍 CV Content Analysis:
-  - Text length: ${cvText.length}
-  - Has real content: ${hasRealContent}
-  - Contains 'experience': ${cvLower.includes('experience')}
-  - Contains 'work': ${cvLower.includes('work')}
-  - Contains 'education': ${cvLower.includes('education')}`);
-  
-  // Extract companies with improved patterns
-  const companies = extractCompaniesEnhanced(cvText);
-  
-  // Extract technologies with improved patterns
-  const technologies = extractTechnologiesEnhanced(cvText);
-  
-  // Extract projects and achievements
-  const projects = extractProjectsEnhanced(cvText);
-  
-  // Extract roles and job titles
-  const roles = extractRolesEnhanced(cvText);
-  
-  // Extract education details
-  const education = extractEducationEnhanced(cvText);
-  
-  // Determine experience level and years
-  const { experienceLevel, experienceYears } = analyzeExperienceLevel(cvText);
-  
-  console.log(`📊 Enhanced CV Analysis Results:
-  - Companies: ${companies.join(', ')}
-  - Technologies: ${technologies.join(', ')}
-  - Projects: ${projects.join(', ')}
-  - Roles: ${roles.join(', ')}
-  - Education: ${education.join(', ')}
-  - Experience: ${experienceLevel} (${experienceYears})`);
-  
-  return {
-    companies,
-    technologies,
-    experienceLevel,
-    experienceYears,
-    education,
-    projects,
-    roles,
-    hasRealContent
+  const analysis = {
+    companies: extractCompanies(cvText),
+    technologies: extractTechnologies(cvText),
+    roles: extractRoles(cvText),
+    projects: extractProjects(cvText),
+    education: extractEducation(cvText),
+    experience: extractExperience(cvText),
+    skills: extractSkills(cvText),
+    achievements: extractAchievements(cvText)
   };
+  
+  console.log('📊 CV Analysis Results:', {
+    companies: analysis.companies.length,
+    technologies: analysis.technologies.length,
+    roles: analysis.roles.length,
+    projects: analysis.projects.length,
+    education: analysis.education.length,
+    experience: analysis.experience.length,
+    skills: analysis.skills.length,
+    achievements: analysis.achievements.length
+  });
+  
+  return analysis;
 }
 
-/**
- * Enhanced company extraction with better patterns
- */
-function extractCompaniesEnhanced(cvText: string): string[] {
+function extractCompanies(text: string): string[] {
   const companies: string[] = [];
-  
-  // Multiple patterns to catch different company name formats
-  const companyPatterns = [
-    // Pattern 1: "at Company Name" or "with Company Name"
-    /(?:at|with|for)\s+([A-Z][a-zA-Z\s&.,-]+(?:Inc|Corp|Ltd|LLC|Company|Solutions|Technologies|Systems|Group|AG|GmbH))/gi,
-    // Pattern 2: Company name followed by date or location
+  const patterns = [
+    /(?:at|with|for|@)\s+([A-Z][a-zA-Z\s&.,-]{2,30}(?:Inc|Corp|Ltd|LLC|Company|Solutions|Technologies|Systems|Group|AG|GmbH|Limited))/gi,
+    /(?:worked|employed|position)\s+(?:at|with|for|by)\s+([A-Z][a-zA-Z\s&.,-]{2,30})/gi,
     /([A-Z][a-zA-Z\s&.,-]{2,30})\s*(?:\||•|,|\s)\s*(?:20\d{2}|19\d{2}|\d{4}|Present|Current)/gi,
-    // Pattern 3: "worked at" or "employed by"
-    /(?:worked|employed|position)\s+(?:at|with|for|by)\s+([A-Z][a-zA-Z\s&.,-]+)/gi,
-    // Pattern 4: Job title at Company
-    /(?:engineer|developer|manager|analyst|consultant|specialist|director|lead)\s+(?:at|@)\s+([A-Z][a-zA-Z\s&.,-]+)/gi,
-    // Pattern 5: Company name in all caps or title case
     /\b([A-Z][A-Z\s&.,-]{3,25}(?:INC|CORP|LTD|LLC|COMPANY|SOLUTIONS|TECHNOLOGIES|SYSTEMS|GROUP))\b/g,
   ];
   
-  companyPatterns.forEach(pattern => {
-    const matches = cvText.match(pattern);
+  patterns.forEach(pattern => {
+    const matches = text.match(pattern);
     if (matches) {
       matches.forEach(match => {
         let cleaned = match
-          .replace(/^(?:at|with|for|worked|employed|position|engineer|developer|manager|analyst|consultant|specialist|director|lead)\s+(?:at|with|for|by|@)?\s*/i, '')
+          .replace(/^(?:at|with|for|worked|employed|position|@)\s+(?:at|with|for|by)?\s*/i, '')
           .replace(/\s*(?:\||•|,|\s)\s*(?:20\d{2}|19\d{2}|\d{4}|Present|Current).*$/i, '')
           .trim();
         
-        // Clean up common noise
         cleaned = cleaned.replace(/[^\w\s&.,-]/g, '').trim();
         
         if (cleaned.length > 2 && cleaned.length < 50 && /^[A-Z]/.test(cleaned)) {
@@ -346,74 +120,60 @@ function extractCompaniesEnhanced(cvText: string): string[] {
   return [...new Set(companies)].slice(0, 5);
 }
 
-/**
- * Enhanced technology extraction
- */
-function extractTechnologiesEnhanced(cvText: string): string[] {
+function extractTechnologies(text: string): string[] {
   const technologies: string[] = [];
-  const text = cvText.toLowerCase();
-  
   const techKeywords = [
-    // Programming languages
     'javascript', 'typescript', 'python', 'java', 'c++', 'c#', 'php', 'ruby', 'swift', 'kotlin', 'go', 'rust',
-    // Frontend frameworks
-    'react', 'angular', 'vue', 'vue.js', 'svelte', 'ember',
-    // Backend frameworks
+    'react', 'angular', 'vue', 'vue.js', 'svelte', 'ember', 'next.js', 'nuxt.js',
     'node.js', 'nodejs', 'express', 'django', 'flask', 'spring', 'laravel', 'rails',
-    // Databases
     'mysql', 'postgresql', 'mongodb', 'redis', 'sqlite', 'oracle', 'sql server',
-    // Cloud platforms
     'aws', 'azure', 'google cloud', 'gcp', 'heroku', 'digitalocean',
-    // DevOps tools
     'docker', 'kubernetes', 'jenkins', 'gitlab', 'github', 'git', 'terraform',
-    // Other technologies
     'html', 'css', 'sass', 'less', 'webpack', 'babel', 'npm', 'yarn'
   ];
   
+  const textLower = text.toLowerCase();
   techKeywords.forEach(tech => {
-    if (text.includes(tech)) {
+    if (textLower.includes(tech)) {
       technologies.push(tech);
-    }
-  });
-  
-  // Also look for technology patterns in the original text
-  const techPatterns = [
-    /\b([A-Z][a-zA-Z]*\.js)\b/g, // JavaScript frameworks like React.js
-    /\b([A-Z]{2,})\b/g, // Acronyms like API, REST, etc.
-  ];
-  
-  techPatterns.forEach(pattern => {
-    const matches = cvText.match(pattern);
-    if (matches) {
-      matches.forEach(match => {
-        const cleaned = match.trim();
-        if (cleaned.length > 2 && cleaned.length < 20) {
-          technologies.push(cleaned.toLowerCase());
-        }
-      });
     }
   });
   
   return [...new Set(technologies)].slice(0, 8);
 }
 
-/**
- * Enhanced project extraction
- */
-function extractProjectsEnhanced(cvText: string): string[] {
-  const projects: string[] = [];
+function extractRoles(text: string): string[] {
+  const roles: string[] = [];
+  const rolePatterns = [
+    /(senior|junior|lead|principal|staff|associate)?\s*(software engineer|developer|programmer|analyst|manager|designer|consultant|specialist|coordinator|assistant|architect|director)/gi,
+    /(full[- ]?stack developer|frontend developer|backend developer|web developer|mobile developer|data scientist|product manager|project manager|scrum master|devops engineer)/gi,
+  ];
   
+  rolePatterns.forEach(pattern => {
+    const matches = text.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        const cleaned = match.trim();
+        if (cleaned.length > 3 && cleaned.length < 40) {
+          roles.push(cleaned);
+        }
+      });
+    }
+  });
+  
+  return [...new Set(roles)].slice(0, 5);
+}
+
+function extractProjects(text: string): string[] {
+  const projects: string[] = [];
   const projectPatterns = [
-    // Pattern 1: "Project: Name" or "Project Name"
     /(?:project|built|developed|created|designed)\s*:?\s*([A-Z][a-zA-Z\s-]+(?:application|system|platform|website|app|tool|service))/gi,
-    // Pattern 2: Project names in quotes or with specific indicators
     /"([^"]+(?:project|application|system|platform|website|app))"/gi,
-    // Pattern 3: Led/managed project
     /(?:led|managed|worked on)\s+(?:the\s+)?([A-Z][a-zA-Z\s-]+(?:project|initiative|system|platform))/gi,
   ];
   
   projectPatterns.forEach(pattern => {
-    const matches = cvText.match(pattern);
+    const matches = text.match(pattern);
     if (matches) {
       matches.forEach(match => {
         let cleaned = match
@@ -431,53 +191,17 @@ function extractProjectsEnhanced(cvText: string): string[] {
   return [...new Set(projects)].slice(0, 5);
 }
 
-/**
- * Enhanced role extraction
- */
-function extractRolesEnhanced(cvText: string): string[] {
-  const roles: string[] = [];
-  
-  const rolePatterns = [
-    // Common job titles
-    /(senior|junior|lead|principal|staff|associate)?\s*(software engineer|developer|programmer|analyst|manager|designer|consultant|specialist|coordinator|assistant|architect|director)/gi,
-    // Full job titles
-    /(full[- ]?stack developer|frontend developer|backend developer|web developer|mobile developer|data scientist|product manager|project manager|scrum master|devops engineer)/gi,
-  ];
-  
-  rolePatterns.forEach(pattern => {
-    const matches = cvText.match(pattern);
-    if (matches) {
-      matches.forEach(match => {
-        const cleaned = match.trim();
-        if (cleaned.length > 3 && cleaned.length < 40) {
-          roles.push(cleaned);
-        }
-      });
-    }
-  });
-  
-  return [...new Set(roles)].slice(0, 5);
-}
-
-/**
- * Enhanced education extraction
- */
-function extractEducationEnhanced(cvText: string): string[] {
+function extractEducation(text: string): string[] {
   const education: string[] = [];
-  
   const educationPatterns = [
-    // Degree types
     /(bachelor|master|phd|doctorate|degree|diploma)\s+(?:of\s+)?(?:science\s+)?(?:in\s+)?([A-Z][a-zA-Z\s]+)/gi,
-    // Specific fields
     /(computer science|software engineering|information technology|electrical engineering|mechanical engineering|business administration|mathematics|physics)/gi,
-    // Universities
     /(?:university|college|institute)\s+of\s+([A-Z][a-zA-Z\s]+)/gi,
-    // Certifications
     /(certified|certification)\s+([A-Z][a-zA-Z\s]+)/gi,
   ];
   
   educationPatterns.forEach(pattern => {
-    const matches = cvText.match(pattern);
+    const matches = text.match(pattern);
     if (matches) {
       matches.forEach(match => {
         const cleaned = match.trim();
@@ -491,132 +215,279 @@ function extractEducationEnhanced(cvText: string): string[] {
   return [...new Set(education)].slice(0, 5);
 }
 
-/**
- * Analyze experience level and years
- */
-function analyzeExperienceLevel(cvText: string): { experienceLevel: string; experienceYears: string } {
-  const cvLower = cvText.toLowerCase();
-  
-  // Look for explicit years of experience
-  const yearPatterns = [
+function extractExperience(text: string): string[] {
+  const experience: string[] = [];
+  const expPatterns = [
     /(\d+)\s*(?:\+)?\s*years?\s+(?:of\s+)?experience/gi,
     /(\d+)\s*(?:\+)?\s*years?\s+(?:in|with|as)/gi,
     /experience\s*:?\s*(\d+)\s*(?:\+)?\s*years?/gi,
   ];
   
-  let experienceYears = 'Not specified';
-  for (const pattern of yearPatterns) {
-    const match = cvText.match(pattern);
-    if (match) {
-      experienceYears = match[0];
-      break;
+  expPatterns.forEach(pattern => {
+    const matches = text.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        experience.push(match.trim());
+      });
     }
-  }
-  
-  // Determine level based on keywords and years
-  let experienceLevel = 'Mid-level';
-  
-  if (cvLower.includes('senior') || cvLower.includes('lead') || cvLower.includes('principal') || cvLower.includes('staff')) {
-    experienceLevel = 'Senior level';
-  } else if (cvLower.includes('junior') || cvLower.includes('entry') || cvLower.includes('graduate') || cvLower.includes('intern')) {
-    experienceLevel = 'Junior level';
-  } else if (cvLower.includes('director') || cvLower.includes('manager') || cvLower.includes('head of')) {
-    experienceLevel = 'Leadership level';
-  }
-  
-  return { experienceLevel, experienceYears };
-}
-
-/**
- * Check if a question is personalized based on CV analysis
- */
-function isPersonalizedQuestion(question: string, cvAnalysis: any, applicantData: ApplicantData): boolean {
-  const questionLower = question.toLowerCase();
-  
-  // Check if question references specific details from CV
-  const hasSpecificReference = 
-    cvAnalysis.companies.some((company: string) => questionLower.includes(company.toLowerCase())) ||
-    cvAnalysis.technologies.some((tech: string) => questionLower.includes(tech.toLowerCase())) ||
-    cvAnalysis.projects.some((project: string) => questionLower.includes(project.toLowerCase())) ||
-    cvAnalysis.roles.some((role: string) => questionLower.includes(role.toLowerCase()));
-  
-  // Check if question references applicant-specific information
-  const hasApplicantReference = 
-    (applicantData.fullName && questionLower.includes(applicantData.fullName.toLowerCase())) ||
-    (applicantData.education && questionLower.includes(applicantData.education.toLowerCase())) ||
-    (applicantData.location && questionLower.includes(applicantData.location.toLowerCase()));
-  
-  // Check for personalization indicators
-  const hasPersonalizationIndicators = 
-    questionLower.includes('i see') || 
-    questionLower.includes('your cv') || 
-    questionLower.includes('you worked') ||
-    questionLower.includes('you mentioned') ||
-    questionLower.includes('your background') ||
-    questionLower.includes('your experience') ||
-    questionLower.includes('with your') ||
-    questionLower.includes('i notice') ||
-    questionLower.includes('based in') ||
-    questionLower.includes('your education');
-  
-  return hasSpecificReference || hasApplicantReference || hasPersonalizationIndicators;
-}
-
-/**
- * Create intelligent fallback questions based on available information
- */
-function createIntelligentFallbackQuestions(
-  cvText: string, 
-  applicantData: ApplicantData, 
-  jobData: JobData, 
-  isFallbackContent: boolean,
-  cvAnalysis: any
-): string[] {
-  const questions: string[] = [];
-  
-  // ALWAYS generate personalized questions based on available information
-  console.log('🔄 Generating highly personalized fallback questions');
-  
-  // Question 1: Based on companies, roles, or education
-  if (cvAnalysis && cvAnalysis.companies.length > 0) {
-    questions.push(`I see from your CV that you've worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project or responsibility you had there and how you handled it?`);
-  } else if (cvAnalysis && cvAnalysis.roles.length > 0) {
-    questions.push(`Your background shows experience as a ${cvAnalysis.roles[0]}. Can you describe a specific situation where you had to solve a difficult problem in that role?`);
-  } else if (applicantData.education) {
-    questions.push(`With your background in ${applicantData.education}, how do you apply that academic knowledge to practical ${jobData.title} work?`);
-  } else {
-    questions.push(`${applicantData.fullName}, based on your professional experience, can you describe a challenging situation you faced and how you overcame it?`);
-  }
-  
-  // Question 2: Based on technologies, projects, or location
-  if (cvAnalysis && cvAnalysis.technologies.length > 0) {
-    questions.push(`I notice your CV mentions experience with ${cvAnalysis.technologies[0]}. Can you walk me through a specific project where you used this technology and what you learned from it?`);
-  } else if (cvAnalysis && cvAnalysis.projects.length > 0) {
-    questions.push(`Your CV mentions work on ${cvAnalysis.projects[0]}. What was the most interesting technical challenge you faced in this project?`);
-  } else if (applicantData.location) {
-    questions.push(`I notice you're based in ${applicantData.location}. How does the local tech scene there influence your approach to ${jobData.title} work?`);
-  } else {
-    questions.push(`Looking at your technical background, which accomplishment are you most proud of and why?`);
-  }
-  
-  // Question 3: Based on education, motivation, or career goals
-  if (applicantData.motivationText && applicantData.motivationText.length > 50) {
-    questions.push(`In your motivation letter, you mentioned your interest in this role. Can you elaborate on what specifically excites you about working as a ${jobData.title}?`);
-  } else if (cvAnalysis && cvAnalysis.education.length > 0) {
-    questions.push(`I see you have ${cvAnalysis.education[0]}. How do you apply what you learned academically to real-world work situations?`);
-  } else if (applicantData.age) {
-    questions.push(`With your experience level, what aspects of this ${jobData.title} role do you see as the biggest opportunities for growth?`);
-  } else {
-    questions.push(`${applicantData.fullName}, what aspects of this ${jobData.title} role excite you most and align with your career goals?`);
-  }
-  
-  console.log('✅ Generated intelligent fallback questions:');
-  questions.forEach((q, i) => {
-    console.log(`   ${i + 1}. ${q}`);
   });
   
-  return questions;
+  return [...new Set(experience)].slice(0, 3);
 }
+
+function extractSkills(text: string): string[] {
+  const skills: string[] = [];
+  const skillPatterns = [
+    /(?:skills|expertise|proficient|experienced)\s*:?\s*([A-Za-z\s,]+)/gi,
+    /(?:familiar with|knowledge of|experience with)\s+([A-Za-z\s,]+)/gi,
+  ];
+  
+  skillPatterns.forEach(pattern => {
+    const matches = text.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        const cleaned = match
+          .replace(/^(?:skills|expertise|proficient|experienced|familiar with|knowledge of|experience with)\s*:?\s*/i, '')
+          .split(',')
+          .map(s => s.trim())
+          .filter(s => s.length > 2 && s.length < 30);
+        
+        skills.push(...cleaned);
+      });
+    }
+  });
+  
+  return [...new Set(skills)].slice(0, 8);
+}
+
+function extractAchievements(text: string): string[] {
+  const achievements: string[] = [];
+  const achievementPatterns = [
+    /(?:achieved|accomplished|delivered|increased|improved|reduced|optimized)\s+([^.!?]+)/gi,
+    /(?:award|recognition|certification|promotion)\s*:?\s*([^.!?]+)/gi,
+  ];
+  
+  achievementPatterns.forEach(pattern => {
+    const matches = text.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        const cleaned = match.trim();
+        if (cleaned.length > 10 && cleaned.length < 100) {
+          achievements.push(cleaned);
+        }
+      });
+    }
+  });
+  
+  return [...new Set(achievements)].slice(0, 5);
+}
+
+export const analyzeApplicant = async (
+  applicantData: ApplicantData,
+  jobData: JobData
+): Promise<AIAnalysisResult> => {
+  try {
+    console.log('🚀 Starting CUSTOM CV-based question generation...');
+    
+    // Check if API key is available
+    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
+    }
+    
+    // MANDATORY: Extract actual CV content
+    if (!applicantData.cvFile) {
+      throw new Error('CV file is required for custom question generation');
+    }
+    
+    console.log('📄 Extracting CV content...');
+    const cvText = await extractCVText(applicantData.cvFile);
+    
+    if (cvText.length < 100) {
+      throw new Error('CV content too short for meaningful analysis');
+    }
+    
+    console.log('🔍 Analyzing CV for specific details...');
+    const cvAnalysis = analyzeCVContent(cvText);
+    
+    // Create detailed analysis summary for AI
+    const analysisDetails = `
+CV ANALYSIS RESULTS:
+- Companies: ${cvAnalysis.companies.join(', ') || 'None found'}
+- Technologies: ${cvAnalysis.technologies.join(', ') || 'None found'}
+- Roles: ${cvAnalysis.roles.join(', ') || 'None found'}
+- Projects: ${cvAnalysis.projects.join(', ') || 'None found'}
+- Education: ${cvAnalysis.education.join(', ') || 'None found'}
+- Experience: ${cvAnalysis.experience.join(', ') || 'None found'}
+- Skills: ${cvAnalysis.skills.join(', ') || 'None found'}
+- Achievements: ${cvAnalysis.achievements.join(', ') || 'None found'}
+`;
+    
+    console.log('📊 CV Analysis Summary:', analysisDetails);
+    
+    // Enhanced prompt that FORCES custom questions
+    const prompt = `You are an expert interviewer who has just carefully read this candidate's CV. You MUST generate EXACTLY 3 highly specific, custom questions that prove you read their actual CV content.
+
+CRITICAL REQUIREMENTS:
+1. Each question MUST reference SPECIFIC details from the CV analysis below
+2. Questions MUST be tailored to the job role: ${jobData.title}
+3. NEVER use generic questions - every question must be unique to this candidate
+4. Reference actual companies, technologies, projects, or experiences from their CV
+5. Connect their background to the specific job requirements
+
+CANDIDATE: ${applicantData.fullName}
+${applicantData.education ? `Education: ${applicantData.education}` : ''}
+${applicantData.location ? `Location: ${applicantData.location}` : ''}
+
+JOB ROLE: ${jobData.title}
+JOB DESCRIPTION: ${jobData.description}
+${jobData.requirements ? `REQUIREMENTS: ${jobData.requirements}` : ''}
+
+${analysisDetails}
+
+FULL CV CONTENT (USE THIS TO CREATE SPECIFIC QUESTIONS):
+${cvText.substring(0, 3000)}...
+
+${applicantData.motivationText ? `MOTIVATION LETTER: ${applicantData.motivationText}` : ''}
+
+QUESTION GENERATION RULES:
+1. If they worked at specific companies, ask about their experience there
+2. If they used specific technologies, ask about projects with those technologies
+3. If they mention specific projects, ask about challenges or achievements
+4. If they have specific education, ask how it applies to this role
+5. Connect their background to the job requirements specifically
+
+EXAMPLES OF GOOD CUSTOM QUESTIONS:
+- "I see you worked at Google as a Software Engineer. Can you tell me about the most challenging technical problem you solved there and how it relates to our ${jobData.title} role?"
+- "Your CV mentions experience with React and Node.js. Can you walk me through a specific project where you used both technologies and how you'd apply that experience here?"
+- "You mentioned the XYZ project in your CV. What was the biggest technical challenge you faced and how did you overcome it?"
+
+Generate exactly 3 questions that reference specific details from this candidate's CV and connect to the ${jobData.title} role.
+
+Respond ONLY with JSON:
+{
+  "followupQuestions": [
+    "Specific question 1 referencing CV details",
+    "Specific question 2 referencing different CV details",
+    "Specific question 3 referencing other CV details"
+  ]
+}`;
+
+    console.log('🤖 Sending enhanced prompt to OpenAI...');
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert interviewer who creates highly specific, personalized questions based on actual CV content. You MUST reference specific details from the candidate\'s background and connect them to the job role. NEVER use generic questions.'
+        },
+        { 
+          role: 'user', 
+          content: prompt 
+        }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+      max_tokens: 1000,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('No content returned from OpenAI');
+    }
+
+    console.log('✅ Received response from OpenAI');
+    console.log('📄 Raw response:', content);
+
+    const result = JSON.parse(content);
+    
+    // Validate that we got exactly 3 questions
+    if (!result.followupQuestions || !Array.isArray(result.followupQuestions) || result.followupQuestions.length !== 3) {
+      throw new Error('AI did not return exactly 3 questions');
+    }
+
+    // Validate that questions are actually custom (not generic)
+    const customQuestions = result.followupQuestions.filter(q => 
+      q.length > 50 && 
+      q.includes('?') && 
+      (
+        cvAnalysis.companies.some(company => q.toLowerCase().includes(company.toLowerCase())) ||
+        cvAnalysis.technologies.some(tech => q.toLowerCase().includes(tech.toLowerCase())) ||
+        cvAnalysis.projects.some(project => q.toLowerCase().includes(project.toLowerCase())) ||
+        cvAnalysis.roles.some(role => q.toLowerCase().includes(role.toLowerCase())) ||
+        q.toLowerCase().includes('cv') ||
+        q.toLowerCase().includes('experience') ||
+        q.toLowerCase().includes('background') ||
+        (applicantData.education && q.toLowerCase().includes(applicantData.education.toLowerCase())) ||
+        (applicantData.location && q.toLowerCase().includes(applicantData.location.toLowerCase()))
+      )
+    );
+
+    if (customQuestions.length < 3) {
+      throw new Error('Questions are not sufficiently customized to the candidate');
+    }
+
+    console.log('✅ Generated 3 custom follow-up questions:');
+    result.followupQuestions.forEach((q: string, i: number) => {
+      console.log(`   ${i + 1}. ${q}`);
+    });
+
+    return result as AIAnalysisResult;
+    
+  } catch (error) {
+    console.error('❌ Error generating custom questions:', error);
+    
+    // Enhanced fallback that still tries to be custom
+    let fallbackQuestions: string[] = [];
+    
+    try {
+      // Try to extract CV content for fallback
+      if (applicantData.cvFile) {
+        const cvText = await extractCVText(applicantData.cvFile);
+        const cvAnalysis = analyzeCVContent(cvText);
+        
+        // Create custom fallback questions based on CV analysis
+        if (cvAnalysis.companies.length > 0) {
+          fallbackQuestions.push(`I see from your CV that you've worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project you worked on there and how it relates to this ${jobData.title} position?`);
+        }
+        
+        if (cvAnalysis.technologies.length > 0) {
+          fallbackQuestions.push(`Your CV mentions experience with ${cvAnalysis.technologies[0]}. Can you walk me through a specific project where you used this technology and how you'd apply that experience in this role?`);
+        }
+        
+        if (cvAnalysis.roles.length > 0) {
+          fallbackQuestions.push(`I noticed you've worked as a ${cvAnalysis.roles[0]}. What was the most significant achievement in that role and how does it prepare you for this ${jobData.title} position?`);
+        }
+        
+        // Fill remaining slots with personalized questions
+        while (fallbackQuestions.length < 3) {
+          if (applicantData.education && fallbackQuestions.length === 0) {
+            fallbackQuestions.push(`With your background in ${applicantData.education}, how do you apply that academic knowledge to practical ${jobData.title} work?`);
+          } else if (applicantData.location && fallbackQuestions.length === 1) {
+            fallbackQuestions.push(`I notice you're based in ${applicantData.location}. How does the local tech scene there influence your approach to ${jobData.title} work?`);
+          } else {
+            fallbackQuestions.push(`Based on your professional experience shown in your CV, what specific skills do you bring that make you ideal for this ${jobData.title} role?`);
+          }
+        }
+      }
+    } catch (fallbackError) {
+      console.error('❌ Fallback also failed:', fallbackError);
+    }
+    
+    // Final fallback if everything fails
+    if (fallbackQuestions.length === 0) {
+      fallbackQuestions = [
+        `${applicantData.fullName}, based on your CV, what specific experience makes you the ideal candidate for this ${jobData.title} position?`,
+        `Looking at your professional background, which accomplishment are you most proud of and how does it relate to this role?`,
+        `What aspects of this ${jobData.title} position excite you most based on your career experience so far?`
+      ];
+    }
+    
+    return {
+      followupQuestions: fallbackQuestions.slice(0, 3),
+    };
+  }
+};
 
 export const evaluateApplicant = async (
   applicantData: ApplicantData,

@@ -360,12 +360,9 @@ export function validateOpenAIApiKey(apiKey: string): { isValid: boolean; error?
     return { isValid: false, error: 'API key is required' };
   }
   
-  if (!apiKey.startsWith('sk-')) {
-    return { isValid: false, error: 'API key must start with "sk-"' };
-  }
-  
-  if (apiKey.length < 20) {
-    return { isValid: false, error: 'API key appears to be too short' };
+  // More lenient validation - just check if it exists and has reasonable length
+  if (apiKey.length < 10) {
+    return { isValid: false, error: 'API key appears to be invalid' };
   }
   
   return { isValid: true };

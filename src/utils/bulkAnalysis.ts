@@ -84,7 +84,7 @@ export const analyzeBulkCVs = async (
           extractedText: extractionResult.text,
           jobDescription,
           filename: fileName,
-          apiKey: import.meta.env.VITE_OPENAI_API_KEY
+          apiKey: apiKey
         });
         
         console.log(`✅ Analysis completed for ${fileName}:`);

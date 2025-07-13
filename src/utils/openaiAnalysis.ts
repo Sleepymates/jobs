@@ -90,6 +90,11 @@ export async function analyzeWithOpenAI({
   console.log(`📝 Text length: ${extractedText.length} characters`);
   console.log(`📋 Job description length: ${jobDescription.length} characters`);
   
+  // Validate API key
+  if (!apiKey || !apiKey.startsWith('sk-')) {
+    throw new Error('Invalid OpenAI API key provided');
+  }
+  
   // Validate inputs
   if (!extractedText.trim()) {
     throw new Error('No text content provided for analysis');

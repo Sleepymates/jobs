@@ -317,115 +317,28 @@ const PostJobPage: React.FC = () => {
     try {
       const job_id = generateJobId();
       
-      let logoUrl = null;
-      if (formData.companyLogo) {
-        const fileExt = formData.companyLogo.name.split('.').pop();
-        const fileName = `${job_id}-logo.${fileExt}`;
-        
-        const { data: fileData, error: fileError } = await supabase.storage
-          .from('company-logos')
-          .upload(fileName, formData.companyLogo);
-        
-        if (fileError) {
-          throw new Error('Failed to upload company logo');
-        }
-        
-        const { data: urlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
-        logoUrl = urlData.publicUrl;
-      }
-
-      let headerImageUrl = null;
-      if (formData.headerImage) {
-        const fileExt = formData.headerImage.name.split('.').pop();
-        const fileName = `${job_id}-header.${fileExt}`;
-        
-        const { data: fileData, error: fileError } = await supabase.storage
-          .from('company-logos')
-          .upload(fileName, formData.headerImage);
-        
-        if (fileError) {
-          throw new Error('Failed to upload header image');
-        }
-        
-        const { data: urlData } = supabase.storage.from('company-logos').getPublicUrl(fileName);
-        headerImageUrl = urlData.publicUrl;
-      }
-
-      const allOptionalFields = {
-        ...formData.optionalFields,
-        custom_fields: formData.customFields,
-      };
-      
-      const { data, error } = await supabase.from('jobs').insert({
-        title: formData.jobTitle,
-        description: formData.jobDescription,
-        requirements: formData.requirements.length > 0 ? formData.requirements.join('\n') : null,
-        custom_questions: [],
-        tags: formData.keywords.length > 0 ? formData.keywords : null,
-        deadline: formData.applicationDeadline || null,
-        email: formData.email,
-        passcode: formData.password,
-        job_id,
-        company_name: formData.companyName,
-        logo_url: logoUrl,
-        header_image_url: headerImageUrl || null,
-        notify_threshold: parseInt(formData.notificationPreference, 10),
-        optional_fields: allOptionalFields,
-      }).select();
-      
-      if (error) {
-        if (error.code === '23505' && error.message.includes('jobs_email_unique')) {
-          throw new Error('An account with this email already exists. Please use the existing password or recover your password.');
-        }
-        throw new Error(error.message);
-      }
-
-      if (data) {
-        const job = data[0];
-        const applicationUrl = generateJobUrl(job.company_name, job.title, job.job_id);
-        const dashboardUrl = `/dashboard/${job.job_id}`;
-        const fullApplicationUrl = window.location.origin + applicationUrl;
-        const fullDashboardUrl = window.location.origin + dashboardUrl;
-        
-        await supabase.from('analytics').insert({
-          job_id,
-          views: 0,
-          applicant_count: 0,
-        });
-        
-        await sendJobCreationWebhook({
-          job_id: job.job_id,
-          job_title: job.title,
-          job_url: fullApplicationUrl,
-          dashboard_url: fullDashboardUrl,
-          passcode: formData.password,
-          company_name: formData.companyName,
-          contact_email: formData.email,
-        });
-        
-        setSuccess(true);
-        setJobData({
-          applicationUrl: fullApplicationUrl,
-          dashboardUrl: fullDashboardUrl,
-          passcode: formData.password,
-          jobTitle: job.title,
-          companyName: job.company_name,
-        });
-
-        setTimeout(() => {
-          createConfettiCannon();
-        }, 500);
-      }
-      
-    } catch (error) {
-      console.error('Error creating job:', error);
-      setErrors({
-        ...errors,
-        submit: error instanceof Error ? error.message : 'Failed to create job. Please try again.',
-      });
-    } finally {
-      setIsSubmitting(false);
+    if (!isFormValid()) {
+      return;
     }
+    
+    // Prepare job data
+    const jobData = {
+      title,
+      description,
+      requirements,
+      customQuestions,
+      tags,
+      deadline: deadline || undefined,
+      email: email.toLowerCase().trim(),
+      passcode,
+      companyName,
+      logoUrl: logoUrl || undefined,
+      headerImageUrl: headerImageUrl || undefined,
+      notifyThreshold: parseInt(notifyThreshold),
+    };
+    
+    // Redirect to token purchase page with job data
+    navigate('/token-purchase', { state: { jobData } });
   };
 
   if (!showForm) {

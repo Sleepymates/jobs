@@ -287,14 +287,33 @@ export const analyzeApplicant = async (
   jobData: JobData
 ): Promise<AIAnalysisResult> => {
   try {
+    // COMPREHENSIVE DEBUGGING - Check what's available
+    console.log('🔍 DEBUGGING ENVIRONMENT VARIABLES:');
+    console.log('Available env vars:', Object.keys(import.meta.env));
+    console.log('VITE_OPENAI_API_KEY exists:', !!import.meta.env.VITE_OPENAI_API_KEY);
+    console.log('VITE_OPENAI_API_KEY length:', import.meta.env.VITE_OPENAI_API_KEY?.length || 0);
+    console.log('VITE_OPENAI_API_KEY starts with sk-:', import.meta.env.VITE_OPENAI_API_KEY?.startsWith('sk-'));
+    console.log('Full env object:', import.meta.env);
+    
     console.log('🚀 Starting CUSTOM CV-based question generation...');
     
     // Check if API key is available
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    
+    console.log('🔑 API Key Check:');
+    console.log('- API Key exists:', !!apiKey);
+    console.log('- API Key length:', apiKey?.length || 0);
+    console.log('- API Key preview:', apiKey ? `${apiKey.substring(0, 10)}...` : 'NONE');
+    
     if (!apiKey || apiKey === 'your_openai_api_key_here') {
-      console.error('❌ OpenAI API key not configured properly');
-      console.error('Available env vars:', Object.keys(import.meta.env));
-      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
+      const errorMsg = `❌ OpenAI API key not configured properly. 
+      API Key: ${apiKey || 'UNDEFINED'}
+      Available env vars: ${Object.keys(import.meta.env).join(', ')}
+      Environment: ${import.meta.env.MODE}
+      Please set VITE_OPENAI_API_KEY in your Netlify environment variables.`;
+      
+      console.error(errorMsg);
+      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your Netlify environment variables.');
     }
     
     // MANDATORY: Extract actual CV content
@@ -376,25 +395,46 @@ Respond ONLY with JSON:
 }`;
 
     console.log('🤖 Sending enhanced prompt to OpenAI...');
+    console.log('🔗 Making request to OpenAI with key:', apiKey.substring(0, 10) + '...');
     
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert interviewer who creates highly specific, personalized questions based on actual CV content. You MUST reference specific details from the candidate\'s background and connect them to the job role. NEVER use generic questions.'
-        },
-        { 
-          role: 'user', 
-          content: prompt 
-        }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.2,
-      max_tokens: 1000,
+    // Try direct fetch to OpenAI API instead of using the openai library
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert interviewer who creates highly specific, personalized questions based on actual CV content. You MUST reference specific details from the candidate\'s background and connect them to the job role. NEVER use generic questions.'
+          },
+          { 
+            role: 'user', 
+            content: prompt 
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.2,
+        max_tokens: 1000,
+      })
     });
 
-    const content = completion.choices[0]?.message?.content;
+    console.log('📡 OpenAI Response Status:', response.status);
+    console.log('📡 OpenAI Response Headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ OpenAI API Error:', errorText);
+      throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+    }
+
+    const completion = await response.json();
+    console.log('✅ OpenAI Response received:', completion);
+
+    const content = completion.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error('No content returned from OpenAI');
     }
@@ -439,6 +479,11 @@ Respond ONLY with JSON:
     
   } catch (error) {
     console.error('❌ Error generating custom questions:', error);
+    console.error('❌ Full error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     
     // Enhanced fallback that still tries to be custom
     let fallbackQuestions: string[] = [];
@@ -501,8 +546,14 @@ export const evaluateApplicant = async (
   try {
     console.log('🎯 Starting final evaluation...');
     
+    // Debug API key again for evaluation
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    console.log('🔑 Evaluation API Key Check:');
+    console.log('- API Key exists:', !!apiKey);
+    console.log('- API Key preview:', apiKey ? `${apiKey.substring(0, 10)}...` : 'NONE');
+    
     // Check if API key is available
-    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+    if (!apiKey || apiKey === 'your_openai_api_key_here') {
       console.error('❌ OpenAI API key not configured for evaluation');
       console.error('Available env vars:', Object.keys(import.meta.env));
       throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
@@ -575,14 +626,29 @@ Format your response as JSON:
 
     console.log('🤖 Sending final evaluation to OpenAI...');
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.1,
+    // Use direct fetch for evaluation too
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+      })
     });
 
-    const content = completion.choices[0]?.message?.content;
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ OpenAI Evaluation API Error:', errorText);
+      throw new Error(`OpenAI API error (${response.status}): ${errorText}`);
+    }
+
+    const completion = await response.json();
+    const content = completion.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error('No content returned from OpenAI');
     }

@@ -4,6 +4,7 @@ import { Sun, Moon, Menu, X, LogOut } from 'lucide-react';
 import Button from '../ui/button';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuthStore } from '../../store/authStore';
+import SubscriptionStatus from '../stripe/SubscriptionStatus';
 
 interface HeaderProps {
   companyLogo?: string;
@@ -161,6 +162,7 @@ const Header: React.FC<HeaderProps> = ({ companyLogo, companyName }) => {
 
                 {isLoggedIn ? (
                   <div className="flex items-center space-x-4">
+                    <SubscriptionStatus />
                     <Button
                       onClick={() => navigateAndScrollToTop('/dashboard')}
                       size="sm"
@@ -279,6 +281,9 @@ const Header: React.FC<HeaderProps> = ({ companyLogo, companyName }) => {
 
                 {isLoggedIn ? (
                   <>
+                    <div className="px-3 py-2">
+                      <SubscriptionStatus />
+                    </div>
                     <Button
                       onClick={() => {
                         navigateAndScrollToTop('/dashboard');

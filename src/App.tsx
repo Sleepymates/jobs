@@ -10,6 +10,8 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import JobsListPage from './pages/JobsListPage';
 import DemoPage from './pages/DemoPage';
 import BulkAnalysisPage from './pages/BulkAnalysisPage';
+import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
+import CheckoutCancelPage from './pages/CheckoutCancelPage';
 
 // Enhanced component to handle scroll to top on route changes
 function ScrollToTop() {
@@ -46,6 +48,8 @@ function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/jobs" element={<JobsListPage />} />
           <Route path="/demo" element={<DemoPage />} />
+          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+          <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

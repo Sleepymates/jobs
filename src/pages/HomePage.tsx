@@ -9,6 +9,7 @@ import Footer from '../components/layout/Footer';
 import { FloatingPaths } from '../components/ui/background-paths';
 import { AnimatedTitle, AnimatedSubtitle } from '../components/ui/typography';
 import { TestimonialsSection } from '../components/ui/testimonials-with-marquee';
+import PricingSection from '../components/stripe/PricingSection';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -42,51 +43,6 @@ const HomePage: React.FC = () => {
       title: "Your Smart Hiring Hub",
       description: "Jump into your personal dashboard where everything is clear, simple, and ready to go. See who scored highest, filter candidates by skills or responses, and view summaries at a glance. With built-in analytics and downloadable results, you're hiring faster and making sharper, more informed decisions every step of the way.",
       image: "https://i.imgur.com/PM9H0hy.jpeg"
-    }
-  ];
-
-  const pricingTiers = [
-    {
-      name: "Starter",
-      price: "Free",
-      description: "Perfect for trying out our platform",
-      features: [
-        "1 active job posting",
-        "Basic AI analysis",
-        "Email notifications",
-        "Standard support"
-      ]
-    },
-    {
-      name: "Professional",
-      price: "$49",
-      period: "/month",
-      description: "Best for growing companies",
-      features: [
-        "5 active job postings",
-        "Advanced AI analysis",
-        "Custom screening questions",
-        "Priority support",
-        "Analytics dashboard",
-        "Team collaboration"
-      ],
-      popular: true
-    },
-    {
-      name: "Enterprise",
-      price: "$199",
-      period: "/month",
-      description: "For large organizations",
-      features: [
-        "Unlimited job postings",
-        "Premium AI analysis",
-        "Custom branding",
-        "API access",
-        "Dedicated support",
-        "Advanced analytics",
-        "Custom integrations",
-        "SLA guarantee"
-      ]
     }
   ];
 
@@ -318,66 +274,13 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-24 bg-white dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <AnimatedTitle text="Simple, Transparent Pricing" />
-            <AnimatedSubtitle text="Choose the plan that best fits your needs" />
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {pricingTiers.map((tier, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card className={`relative h-full ${tier.popular ? 'border-2 border-gray-900 dark:border-white' : ''}`}>
-                  {tier.popular && (
-                    <div className="absolute top-0 right-0 -translate-y-1/2 px-3 py-1 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium rounded-full">
-                      Most Popular
-                    </div>
-                  )}
-                  <div className="p-6">
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{tier.name}</h3>
-                    <div className="flex items-baseline mb-2">
-                      <span className="text-4xl font-bold text-gray-900 dark:text-white">{tier.price}</span>
-                      {tier.period && (
-                        <span className="ml-1 text-gray-500 dark:text-gray-400">{tier.period}</span>
-                      )}
-                    </div>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">{tier.description}</p>
-                    
-                    <Button
-                      variant={tier.popular ? 'default' : 'outline'}
-                      className="w-full mb-6"
-                      onClick={() => navigate('/post')}
-                    >
-                      Get Started
-                    </Button>
-
-                    <ul className="space-y-3">
-                      {tier.features.map((feature, featureIndex) => (
-                        <li key={featureIndex} className="flex items-center text-gray-600 dark:text-gray-400">
-                          <Check className="h-5 w-5 text-gray-900 dark:text-white mr-2" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <div id="pricing">
+        <PricingSection 
+          title="Simple, Transparent Pricing"
+          subtitle="Choose the plan that best fits your needs"
+          className="bg-white dark:bg-gray-900"
+        />
+      </div>
 
       {/* FAQ Section */}
       <section id="faq" className="py-24 bg-beige-50 dark:bg-black">

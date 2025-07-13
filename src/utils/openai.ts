@@ -147,11 +147,6 @@ MANDATORY REQUIREMENTS FOR YOUR QUESTIONS:
 
 EXAMPLES OF GOOD PERSONALIZED QUESTIONS (adapt to this candidate's actual background):
 ${cvAnalysis.companies.length > 0 ? `- "I see you worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project you handled there?"` : ''}
-${cvAnalysis.technologies.length > 0 ? `- "Your CV mentions experience with ${cvAnalysis.technologies[0]}. Can you walk me through a specific project where you used this technology?"` : ''}
-${cvAnalysis.projects.length > 0 ? `- "You mentioned working on ${cvAnalysis.projects[0]}. What was the most interesting technical challenge you faced?"` : ''}
-${applicantData.education ? `- "With your background in ${applicantData.education}, how do you apply that knowledge to practical ${jobData.title} work?"` : ''}
-${applicantData.location ? `- "I notice you're based in ${applicantData.location}. How does the local tech scene there influence your approach to development?"` : ''}
-
 Generate exactly 3 questions that reference specific details from this candidate's CV.
 
 Respond in JSON format:

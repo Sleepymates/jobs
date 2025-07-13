@@ -67,6 +67,9 @@ export const analyzeApplicant = async (
       throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
     
+    // Log the API key to verify it's correct (first 10 chars only for security)
+    console.log('🔑 Using OpenAI API key:', import.meta.env.VITE_OPENAI_API_KEY.substring(0, 10) + '...');
+    
     // Extract text from the actual uploaded CV file
     let cvText = '';
     if (applicantData.cvFile) {
@@ -95,40 +98,10 @@ export const analyzeApplicant = async (
     - Education found: ${cvAnalysis.education.length}
     - Projects found: ${cvAnalysis.projects.length}`);
 
-    let prompt: string;
-
-    if (!hasRealContent) {
-      console.log('⚠️ CV content appears to be fallback text, generating questions based on job requirements');
-      
-      prompt = `You are an expert HR interviewer. The candidate's CV could not be automatically processed, so generate 3 interview questions based on the job requirements and applicant information.
-
-JOB POSITION: ${jobData.title}
-JOB DESCRIPTION: ${jobData.description}
-${jobData.requirements ? `JOB REQUIREMENTS: ${jobData.requirements}` : ''}
-
-CANDIDATE INFORMATION:
-- Name: ${applicantData.fullName}
-${applicantData.age ? `- Age: ${applicantData.age}` : ''}
-${applicantData.location ? `- Location: ${applicantData.location}` : ''}
-${applicantData.education ? `- Education: ${applicantData.education}` : ''}
-
-${applicantData.motivationText ? `MOTIVATION LETTER: ${applicantData.motivationText}` : ''}
-
-Generate 3 thoughtful interview questions that assess their experience relevant to the ${jobData.title} role.
-
-Respond in JSON format:
-{
-  "followupQuestions": [
-    "Question 1 about relevant experience for ${jobData.title}",
-    "Question 2 about technical skills and problem-solving", 
-    "Question 3 about motivation and career alignment"
-  ]
-}`;
-    } else {
-      // We have actual CV content - generate highly personalized questions
-      console.log('✅ CV content extracted successfully, generating HIGHLY PERSONALIZED questions');
-      
-      prompt = `You are an expert HR interviewer who has just read this candidate's CV in detail. You MUST generate EXACTLY 3 highly specific, personalized questions that prove you read their actual CV content.
+    // ALWAYS generate highly personalized questions based on CV content
+    console.log('✅ Generating HIGHLY PERSONALIZED questions based on CV analysis');
+    
+    const prompt = `You are an expert HR interviewer who has just read this candidate's CV in detail. You MUST generate EXACTLY 3 highly specific, personalized questions that prove you read their actual CV content.
 
 CRITICAL INSTRUCTIONS:
 1. You MUST reference SPECIFIC details from the CV content below
@@ -138,6 +111,8 @@ CRITICAL INSTRUCTIONS:
 5. If you see company names, mention them specifically
 6. If you see specific technologies, ask about them directly
 7. If you see projects or achievements, reference them by name
+8. If CV content is limited, use the motivation letter and applicant info to create specific questions
+9. ALWAYS make questions feel personal and specific to this individual
 
 JOB POSITION: ${jobData.title}
 JOB DESCRIPTION: ${jobData.description}
@@ -167,11 +142,15 @@ MANDATORY REQUIREMENTS FOR YOUR QUESTIONS:
 3. Make questions conversational like "I see you worked at [Company Name]..." or "Your CV mentions [Technology]..."
 4. Each question should focus on different aspects of their experience
 5. Questions should be relevant to the ${jobData.title} position
+6. If specific details are limited, reference their education, location, or motivation letter specifically
+7. NEVER ask generic questions - always personalize to THIS candidate
 
 EXAMPLES OF GOOD PERSONALIZED QUESTIONS (adapt to this candidate's actual background):
 ${cvAnalysis.companies.length > 0 ? `- "I see you worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project you handled there?"` : ''}
 ${cvAnalysis.technologies.length > 0 ? `- "Your CV mentions experience with ${cvAnalysis.technologies[0]}. Can you walk me through a specific project where you used this technology?"` : ''}
 ${cvAnalysis.projects.length > 0 ? `- "You mentioned working on ${cvAnalysis.projects[0]}. What was the most interesting technical challenge you faced?"` : ''}
+${applicantData.education ? `- "With your background in ${applicantData.education}, how do you apply that knowledge to practical ${jobData.title} work?"` : ''}
+${applicantData.location ? `- "I notice you're based in ${applicantData.location}. How does the local tech scene there influence your approach to development?"` : ''}
 
 Generate exactly 3 questions that reference specific details from this candidate's CV.
 
@@ -183,7 +162,6 @@ Respond in JSON format:
     "Question 3 with another specific CV reference"
   ]
 }`;
-    }
 
     console.log('🤖 Sending detailed CV analysis to OpenAI for personalized question generation...');
     
@@ -192,7 +170,7 @@ Respond in JSON format:
       messages: [
         {
           role: 'system',
-          content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You must reference specific details from the candidate\'s background to prove you read their CV thoroughly. Never use generic questions.'
+          content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You MUST reference specific details from the candidate\'s background to prove you read their CV thoroughly. NEVER use generic questions. ALWAYS personalize every question to the specific candidate. If CV details are limited, use education, location, motivation letter, or any other available information to make questions personal and specific.'
         },
         { 
           role: 'user', 
@@ -200,7 +178,7 @@ Respond in JSON format:
         }
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.1, // Very low temperature for specific, consistent responses
+      temperature: 0.3, // Slightly higher for more creative personalization
       max_tokens: 1000,
     });
 
@@ -217,19 +195,19 @@ Respond in JSON format:
     // Validate that we got exactly 3 questions
     if (!result.followupQuestions || !Array.isArray(result.followupQuestions) || result.followupQuestions.length !== 3) {
       console.warn('❌ AI did not return exactly 3 questions, using intelligent fallback');
-      const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
+      const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, false, cvAnalysis);
       return { followupQuestions: fallbackQuestions };
     }
 
     // Enhanced validation for personalized questions
     const validQuestions = result.followupQuestions.filter(q => 
       q.length > 30 && q.length < 300 && q.includes('?') && 
-      (hasRealContent ? isPersonalizedQuestion(q, cvAnalysis) : true)
+      isPersonalizedQuestion(q, cvAnalysis, applicantData)
     );
 
     if (validQuestions.length < 3) {
       console.warn('❌ Questions not sufficiently personalized, using intelligent fallback');
-      const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
+      const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, false, cvAnalysis);
       return { followupQuestions: fallbackQuestions };
     }
 
@@ -245,21 +223,18 @@ Respond in JSON format:
     // Enhanced fallback
     let cvText = '';
     let cvAnalysis = null;
-    let hasRealContent = false;
     
     if (applicantData.cvFile) {
       try {
         cvText = await extractCVText(applicantData.cvFile);
         cvAnalysis = performDetailedCVAnalysis(cvText);
-        hasRealContent = cvAnalysis.hasRealContent && cvText.length > 200;
       } catch (e) {
         console.error('Failed to extract CV for fallback:', e);
         cvText = `CV document uploaded: ${applicantData.cvFile.name}. Document processing encountered technical difficulties.`;
-        hasRealContent = false;
       }
     }
     
-    const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, !hasRealContent, cvAnalysis);
+    const fallbackQuestions = createIntelligentFallbackQuestions(cvText, applicantData, jobData, false, cvAnalysis);
     
     return {
       followupQuestions: fallbackQuestions,
@@ -560,7 +535,7 @@ function analyzeExperienceLevel(cvText: string): { experienceLevel: string; expe
 /**
  * Check if a question is personalized based on CV analysis
  */
-function isPersonalizedQuestion(question: string, cvAnalysis: any): boolean {
+function isPersonalizedQuestion(question: string, cvAnalysis: any, applicantData: ApplicantData): boolean {
   const questionLower = question.toLowerCase();
   
   // Check if question references specific details from CV
@@ -570,6 +545,12 @@ function isPersonalizedQuestion(question: string, cvAnalysis: any): boolean {
     cvAnalysis.projects.some((project: string) => questionLower.includes(project.toLowerCase())) ||
     cvAnalysis.roles.some((role: string) => questionLower.includes(role.toLowerCase()));
   
+  // Check if question references applicant-specific information
+  const hasApplicantReference = 
+    (applicantData.fullName && questionLower.includes(applicantData.fullName.toLowerCase())) ||
+    (applicantData.education && questionLower.includes(applicantData.education.toLowerCase())) ||
+    (applicantData.location && questionLower.includes(applicantData.location.toLowerCase()));
+  
   // Check for personalization indicators
   const hasPersonalizationIndicators = 
     questionLower.includes('i see') || 
@@ -577,9 +558,13 @@ function isPersonalizedQuestion(question: string, cvAnalysis: any): boolean {
     questionLower.includes('you worked') ||
     questionLower.includes('you mentioned') ||
     questionLower.includes('your background') ||
-    questionLower.includes('your experience');
+    questionLower.includes('your experience') ||
+    questionLower.includes('with your') ||
+    questionLower.includes('i notice') ||
+    questionLower.includes('based in') ||
+    questionLower.includes('your education');
   
-  return hasSpecificReference || hasPersonalizationIndicators;
+  return hasSpecificReference || hasApplicantReference || hasPersonalizationIndicators;
 }
 
 /**
@@ -594,54 +579,40 @@ function createIntelligentFallbackQuestions(
 ): string[] {
   const questions: string[] = [];
   
-  if (isFallbackContent || !cvAnalysis || !cvAnalysis.hasRealContent) {
-    // CV couldn't be processed, generate questions based on job requirements
-    console.log('🔄 Generating questions based on job requirements (CV not processable)');
-    
-    questions.push(`Can you tell me about your experience that's most relevant to this ${jobData.title} position? What specific projects or responsibilities have prepared you for this role?`);
-    
-    const jobLower = (jobData.description + ' ' + (jobData.requirements || '')).toLowerCase();
-    let techQuestion = `What technical skills and tools do you have experience with that would be valuable for this ${jobData.title} role?`;
-    
-    if (jobLower.includes('react') || jobLower.includes('javascript')) {
-      techQuestion = `This role involves frontend development. Can you describe your experience with JavaScript frameworks and how you approach building user interfaces?`;
-    } else if (jobLower.includes('python') || jobLower.includes('backend')) {
-      techQuestion = `This position requires backend development skills. Can you walk me through your experience with server-side technologies and API development?`;
-    }
-    
-    questions.push(techQuestion);
-    questions.push(`What interests you most about this ${jobData.title} opportunity, and how does it align with your career goals?`);
-    
+  // ALWAYS generate personalized questions based on available information
+  console.log('🔄 Generating highly personalized fallback questions');
+  
+  // Question 1: Based on companies, roles, or education
+  if (cvAnalysis && cvAnalysis.companies.length > 0) {
+    questions.push(`I see from your CV that you've worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project or responsibility you had there and how you handled it?`);
+  } else if (cvAnalysis && cvAnalysis.roles.length > 0) {
+    questions.push(`Your background shows experience as a ${cvAnalysis.roles[0]}. Can you describe a specific situation where you had to solve a difficult problem in that role?`);
+  } else if (applicantData.education) {
+    questions.push(`With your background in ${applicantData.education}, how do you apply that academic knowledge to practical ${jobData.title} work?`);
   } else {
-    // We have CV content, generate personalized questions based on analysis
-    console.log('🔄 Generating personalized fallback questions based on CV analysis');
-    
-    // Question 1: Based on companies or roles
-    if (cvAnalysis.companies.length > 0) {
-      questions.push(`I see from your CV that you've worked at ${cvAnalysis.companies[0]}. Can you tell me about the most challenging project or responsibility you had there and how you handled it?`);
-    } else if (cvAnalysis.roles.length > 0) {
-      questions.push(`Your background shows experience as a ${cvAnalysis.roles[0]}. Can you describe a specific situation where you had to solve a difficult problem in that role?`);
-    } else {
-      questions.push(`Based on your professional experience, can you describe a challenging situation you faced and how you overcame it?`);
-    }
-    
-    // Question 2: Based on technologies or projects
-    if (cvAnalysis.technologies.length > 0) {
-      questions.push(`I notice your CV mentions experience with ${cvAnalysis.technologies[0]}. Can you walk me through a specific project where you used this technology and what you learned from it?`);
-    } else if (cvAnalysis.projects.length > 0) {
-      questions.push(`Your CV mentions work on ${cvAnalysis.projects[0]}. What was the most interesting technical challenge you faced in this project?`);
-    } else {
-      questions.push(`Looking at your technical background, which accomplishment are you most proud of and why?`);
-    }
-    
-    // Question 3: Based on education or career progression
-    if (cvAnalysis.education.length > 0) {
-      questions.push(`I see you have ${cvAnalysis.education[0]}. How do you apply what you learned academically to real-world work situations?`);
-    } else if (cvAnalysis.companies.length > 1) {
-      questions.push(`Your CV shows you've worked at multiple companies. What motivated you to make career transitions, and what did you learn from each experience?`);
-    } else {
-      questions.push(`Based on your background, what aspects of this ${jobData.title} role excite you most and align with your experience?`);
-    }
+    questions.push(`${applicantData.fullName}, based on your professional experience, can you describe a challenging situation you faced and how you overcame it?`);
+  }
+  
+  // Question 2: Based on technologies, projects, or location
+  if (cvAnalysis && cvAnalysis.technologies.length > 0) {
+    questions.push(`I notice your CV mentions experience with ${cvAnalysis.technologies[0]}. Can you walk me through a specific project where you used this technology and what you learned from it?`);
+  } else if (cvAnalysis && cvAnalysis.projects.length > 0) {
+    questions.push(`Your CV mentions work on ${cvAnalysis.projects[0]}. What was the most interesting technical challenge you faced in this project?`);
+  } else if (applicantData.location) {
+    questions.push(`I notice you're based in ${applicantData.location}. How does the local tech scene there influence your approach to ${jobData.title} work?`);
+  } else {
+    questions.push(`Looking at your technical background, which accomplishment are you most proud of and why?`);
+  }
+  
+  // Question 3: Based on education, motivation, or career goals
+  if (applicantData.motivationText && applicantData.motivationText.length > 50) {
+    questions.push(`In your motivation letter, you mentioned your interest in this role. Can you elaborate on what specifically excites you about working as a ${jobData.title}?`);
+  } else if (cvAnalysis && cvAnalysis.education.length > 0) {
+    questions.push(`I see you have ${cvAnalysis.education[0]}. How do you apply what you learned academically to real-world work situations?`);
+  } else if (applicantData.age) {
+    questions.push(`With your experience level, what aspects of this ${jobData.title} role do you see as the biggest opportunities for growth?`);
+  } else {
+    questions.push(`${applicantData.fullName}, what aspects of this ${jobData.title} role excite you most and align with your career goals?`);
   }
   
   console.log('✅ Generated intelligent fallback questions:');

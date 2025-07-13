@@ -89,19 +89,6 @@ export async function analyzeWithOpenAI({
   console.log(`🤖 Starting OpenAI analysis for: ${filename}`);
   console.log(`📝 Text length: ${extractedText.length} characters`);
   console.log(`📋 Job description length: ${jobDescription.length} characters`);
-  console.log(`🔑 API Key validation:`);
-  console.log(`  - Length: ${apiKey?.length || 0}`);
-  console.log(`  - Starts with sk-: ${apiKey?.startsWith('sk-') || false}`);
-  console.log(`  - Preview: ${apiKey ? `${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 10)}` : 'NOT_PROVIDED'}`);
-  
-  // Validate API key
-  if (!apiKey || !apiKey.startsWith('sk-')) {
-    throw new Error(`❌ Invalid OpenAI API key provided. Expected format: sk-... but got: ${apiKey ? apiKey.substring(0, 10) + '...' : 'undefined'}`);
-  }
-  
-  if (apiKey.length < 50) {
-    throw new Error(`❌ OpenAI API key appears to be too short. Expected 50+ characters but got ${apiKey.length} characters.`);
-  }
   
   // Validate inputs
   if (!extractedText.trim()) {

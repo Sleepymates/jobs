@@ -1,5 +1,10 @@
 import OpenAI from 'openai';
 
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
+  dangerouslyAllowBrowser: true, // Only for demo purposes
+});
+
 type ApplicantData = {
   fullName: string;
   age?: number;
@@ -58,29 +63,9 @@ export const analyzeApplicant = async (
     console.log('🔍 Starting comprehensive CV analysis...');
     
     // Check if API key is available
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    
-    console.log('🔑 API Key Debug Info:');
-    console.log('  - API Key exists:', !!apiKey);
-    console.log('  - API Key length:', apiKey?.length || 0);
-    console.log('  - API Key starts with sk-:', apiKey?.startsWith('sk-') || false);
-    console.log('  - API Key preview:', apiKey ? `${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 10)}` : 'NOT_FOUND');
-    
-    if (!apiKey) {
-      throw new Error('❌ OpenAI API key not found! Please set VITE_OPENAI_API_KEY in Netlify environment variables.');
+    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
-    
-    // Validate API key format
-    if (!apiKey.startsWith('sk-')) {
-      throw new Error(`❌ Invalid OpenAI API key format. Expected format: sk-... but got: ${apiKey.substring(0, 10)}...`);
-    }
-    
-    // Check API key length (OpenAI keys are typically 51+ characters)
-    if (apiKey.length < 50) {
-      throw new Error(`❌ OpenAI API key appears to be too short. Expected 50+ characters but got ${apiKey.length} characters.`);
-    }
-    
-    console.log('✅ OpenAI API key found and validated');
     
     // Extract text from the actual uploaded CV file
     let cvText = '';
@@ -202,38 +187,24 @@ Respond in JSON format:
 
     console.log('🤖 Sending detailed CV analysis to OpenAI for personalized question generation...');
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You must reference specific details from the candidate\'s background to prove you read their CV thoroughly. Never use generic questions.'
-          },
-          { 
-            role: 'user', 
-            content: prompt 
-          }
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.1,
-        max_tokens: 1000,
-      })
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You must reference specific details from the candidate\'s background to prove you read their CV thoroughly. Never use generic questions.'
+        },
+        { 
+          role: 'user', 
+          content: prompt 
+        }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.1, // Very low temperature for specific, consistent responses
+      max_tokens: 1000,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-      throw new Error(`OpenAI API error: ${errorMessage}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
+    const content = completion.choices[0]?.message?.content;
     if (!content) {
       throw new Error('No content returned from OpenAI');
     }
@@ -691,23 +662,8 @@ export const evaluateApplicant = async (
     console.log('🎯 Starting final evaluation...');
     
     // Check if API key is available
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    
-    console.log('🔑 Final Evaluation - API Key Debug:');
-    console.log('  - API Key exists:', !!apiKey);
-    console.log('  - API Key length:', apiKey?.length || 0);
-    
-    if (!apiKey) {
-      throw new Error('❌ OpenAI API key not found for final evaluation! Please set VITE_OPENAI_API_KEY in Netlify environment variables.');
-    }
-    
-    // Validate API key format
-    if (!apiKey.startsWith('sk-')) {
-      throw new Error(`❌ Invalid OpenAI API key format for final evaluation. Expected format: sk-... but got: ${apiKey.substring(0, 10)}...`);
-    }
-    
-    if (apiKey.length < 50) {
-      throw new Error(`❌ OpenAI API key appears to be too short for final evaluation. Expected 50+ characters but got ${apiKey.length} characters.`);
+    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
     
     // Extract text from the actual uploaded CV file

@@ -18,6 +18,9 @@ import { supabase } from '../supabase/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import { generateJobUrl } from '../utils/urlHelpers';
 import toast from 'react-hot-toast';
+import { getUserTokenInfo } from '../utils/tokenUtils';
+import TokenPurchaseModal from '../components/tokens/TokenPurchaseModal';
+import TokenDisplay from '../components/tokens/TokenDisplay';
 
 const DashboardPage: React.FC = () => {
   const { jobId } = useParams<{ jobId: string }>();
@@ -37,6 +40,8 @@ const DashboardPage: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedApplicant, setSelectedApplicant] = useState<any>(null);
   const [notifyThreshold, setNotifyThreshold] = useState<number>(0);
+  const [tokenInfo, setTokenInfo] = useState<any>(null);
+  const [showTokenModal, setShowTokenModal] = useState(false);
 
   // Scroll to top on component mount
   useEffect(() => {
@@ -55,9 +60,21 @@ const DashboardPage: React.FC = () => {
     if (isLoggedIn && email && passcode) {
       fetchJobData();
       fetchAllUserJobs();
+      fetchTokenInfo();
     }
   }, [jobId, isLoggedIn, email, passcode]);
   
+  const fetchTokenInfo = async () => {
+    if (!email) return;
+    
+    try {
+      const tokens = await getUserTokenInfo(email);
+      setTokenInfo(tokens);
+    } catch (error) {
+      console.error('Error fetching token info:', error);
+    }
+  };
+
   const fetchJobData = async () => {
     if (!email || !passcode || !jobId) return;
 
@@ -318,6 +335,17 @@ const DashboardPage: React.FC = () => {
           {/* Header with job switcher */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
             <div className="flex-1">
+              {/* Token Display */}
+              {tokenInfo && (
+                <div className="mb-4">
+                  <TokenDisplay
+                    tokensAvailable={tokenInfo.tokensAvailable}
+                    tokensUsed={tokenInfo.tokensUsed}
+                    onPurchaseClick={() => setShowTokenModal(true)}
+                  />
+                </div>
+              )}
+              
               <div className="flex items-center gap-4 mb-2">
                 {allJobs.length > 1 && (
                   <div className="relative">
@@ -790,6 +818,19 @@ const DashboardPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Token Purchase Modal */}
+      {showTokenModal && email && (
+        <TokenPurchaseModal
+          isOpen={showTokenModal}
+          onClose={() => setShowTokenModal(false)}
+          userEmail={email}
+          onSuccess={() => {
+            setShowTokenModal(false);
+            fetchTokenInfo(); // Refresh token info
+          }}
+        />
       )}
 
       {/* Click outside to close job switcher */}

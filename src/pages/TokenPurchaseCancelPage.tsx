@@ -10,10 +10,25 @@ import { FloatingPaths } from '../components/ui/background-paths';
 
 const TokenPurchaseCancelPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const jobDataParam = searchParams.get('jobData');
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  const handleRetryPurchase = () => {
+    if (jobDataParam) {
+      try {
+        const jobData = JSON.parse(decodeURIComponent(jobDataParam));
+        navigate('/token-purchase', { state: { jobData } });
+      } catch (error) {
+        navigate('/post');
+      }
+    } else {
+      navigate('/post');
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-beige-50 dark:bg-black">
@@ -70,11 +85,11 @@ const TokenPurchaseCancelPage: React.FC = () => {
                     
                     <div className="space-y-3">
                       <Button
-                        onClick={() => navigate('/forgot')}
+                        onClick={handleRetryPurchase}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />
-                        Go to Dashboard
+                        Try Purchase Again
                       </Button>
                       
                       <Button

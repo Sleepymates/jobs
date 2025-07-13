@@ -21,6 +21,7 @@ const TokenPurchaseSuccessPage: React.FC = () => {
   const sessionId = searchParams.get('session_id');
   const email = searchParams.get('email');
   const tokens = searchParams.get('tokens');
+  const jobDataParam = searchParams.get('jobData');
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -28,7 +29,7 @@ const TokenPurchaseSuccessPage: React.FC = () => {
 
   useEffect(() => {
     const processTokenPurchase = async () => {
-      if (!sessionId || !email || !tokens) {
+      if (!sessionId || !email || !tokens || !jobDataParam) {
         toast.error('Invalid purchase information');
         navigate('/');
         return;
@@ -36,6 +37,7 @@ const TokenPurchaseSuccessPage: React.FC = () => {
 
       try {
         const tokensToAdd = parseInt(tokens, 10);
+        const jobData = JSON.parse(decodeURIComponent(jobDataParam));
         
         // Add tokens to user account
         const success = await addTokensToUser(
@@ -57,6 +59,23 @@ const TokenPurchaseSuccessPage: React.FC = () => {
           });
           
           toast.success(`Successfully added ${tokensToAdd} tokens to your account!`);
+          
+          // Now post the job
+          console.log('Posting job after successful token purchase...');
+          
+          // Import and call the job posting function
+          const { postJobToDatabase } = await import('../utils/jobPosting');
+          const jobResult = await postJobToDatabase(jobData);
+          
+          if (jobResult.success) {
+            toast.success('Job posted successfully!');
+            // Redirect to dashboard after a short delay
+            setTimeout(() => {
+              navigate(`/dashboard/${jobResult.jobId}`);
+            }, 2000);
+          } else {
+            throw new Error('Failed to post job after payment');
+          }
         } else {
           throw new Error('Failed to add tokens to account');
         }
@@ -69,7 +88,7 @@ const TokenPurchaseSuccessPage: React.FC = () => {
     };
 
     processTokenPurchase();
-  }, [sessionId, email, tokens, navigate]);
+  }, [sessionId, email, tokens, jobDataParam, navigate]);
 
   if (loading) {
     return (

@@ -14,6 +14,7 @@ import CheckoutSuccessPage from './pages/CheckoutSuccessPage';
 import CheckoutCancelPage from './pages/CheckoutCancelPage';
 import TokenPurchaseSuccessPage from './pages/TokenPurchaseSuccessPage';
 import TokenPurchaseCancelPage from './pages/TokenPurchaseCancelPage';
+import TokenPurchasePage from './pages/TokenPurchasePage';
 
 // Enhanced component to handle scroll to top on route changes
 function ScrollToTop() {
@@ -54,6 +55,7 @@ function App() {
           <Route path="/checkout/cancel" element={<CheckoutCancelPage />} />
           <Route path="/token-purchase-success" element={<TokenPurchaseSuccessPage />} />
           <Route path="/token-purchase-cancel" element={<TokenPurchaseCancelPage />} />
+          <Route path="/token-purchase" element={<TokenPurchasePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

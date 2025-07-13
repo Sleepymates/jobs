@@ -63,9 +63,17 @@ export const analyzeApplicant = async (
     console.log('🔍 Starting comprehensive CV analysis...');
     
     // Check if API key is available
-    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (!apiKey) {
       throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
+    
+    // Validate API key format
+    if (!apiKey.startsWith('sk-')) {
+      throw new Error('Invalid OpenAI API key format. API key should start with "sk-"');
+    }
+    
+    console.log('✅ OpenAI API key found and validated');
     
     // Extract text from the actual uploaded CV file
     let cvText = '';
@@ -187,24 +195,38 @@ Respond in JSON format:
 
     console.log('🤖 Sending detailed CV analysis to OpenAI for personalized question generation...');
     
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You must reference specific details from the candidate\'s background to prove you read their CV thoroughly. Never use generic questions.'
-        },
-        { 
-          role: 'user', 
-          content: prompt 
-        }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.1, // Very low temperature for specific, consistent responses
-      max_tokens: 1000,
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert HR interviewer who carefully reads CVs and generates highly specific, personalized questions based on actual CV content. You must reference specific details from the candidate\'s background to prove you read their CV thoroughly. Never use generic questions.'
+          },
+          { 
+            role: 'user', 
+            content: prompt 
+          }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 1000,
+      })
     });
 
-    const content = completion.choices[0]?.message?.content;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+      throw new Error(`OpenAI API error: ${errorMessage}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content;
     if (!content) {
       throw new Error('No content returned from OpenAI');
     }
@@ -662,8 +684,14 @@ export const evaluateApplicant = async (
     console.log('🎯 Starting final evaluation...');
     
     // Check if API key is available
-    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (!apiKey) {
       throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
+    }
+    
+    // Validate API key format
+    if (!apiKey.startsWith('sk-')) {
+      throw new Error('Invalid OpenAI API key format. API key should start with "sk-"');
     }
     
     // Extract text from the actual uploaded CV file

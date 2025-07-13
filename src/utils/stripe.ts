@@ -95,9 +95,9 @@ export async function getUserSubscription() {
     const { data, error } = await supabase
       .from('stripe_user_subscriptions')
       .select('*')
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
+    if (error) {
       throw error;
     }
 

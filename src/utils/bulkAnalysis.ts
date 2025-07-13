@@ -28,18 +28,15 @@ export const analyzeBulkCVs = async (
     console.log(`📝 Job description: ${jobDescription.substring(0, 100)}...`);
     
     // Check if API key is available
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured. Please check your environment variables.');
+    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
     
     // Validate API key
-    const keyValidation = validateOpenAIApiKey(apiKey);
+    const keyValidation = validateOpenAIApiKey(import.meta.env.VITE_OPENAI_API_KEY);
     if (!keyValidation.isValid) {
       throw new Error(`Invalid OpenAI API key: ${keyValidation.error}`);
     }
-    
-    console.log('✅ OpenAI API key validated successfully');
     
     // Validate job description
     if (!jobDescription.trim() || jobDescription.trim().length < 100) {
@@ -87,7 +84,7 @@ export const analyzeBulkCVs = async (
           extractedText: extractionResult.text,
           jobDescription,
           filename: fileName,
-          apiKey: apiKey
+          apiKey: import.meta.env.VITE_OPENAI_API_KEY
         });
         
         console.log(`✅ Analysis completed for ${fileName}:`);

@@ -89,8 +89,6 @@ export async function analyzeWithOpenAI({
   console.log(`🤖 Starting OpenAI analysis for: ${filename}`);
   console.log(`📝 Text length: ${extractedText.length} characters`);
   console.log(`📋 Job description length: ${jobDescription.length} characters`);
-  console.log(`🔑 API Key present: ${apiKey ? 'Yes' : 'No'}`);
-  console.log(`🔑 API Key format: ${apiKey ? apiKey.substring(0, 7) + '...' : 'None'}`);
   
   // Validate inputs
   if (!extractedText.trim()) {
@@ -107,10 +105,6 @@ export async function analyzeWithOpenAI({
   
   if (jobDescription.length < 50) {
     throw new Error('Job description is too short for accurate analysis');
-  }
-  
-  if (!apiKey || apiKey.length < 10) {
-    throw new Error('Valid OpenAI API key is required');
   }
   
   // Create enhanced prompt with better scoring differentiation
@@ -206,7 +200,6 @@ Respond ONLY with valid JSON:
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
-      console.error('❌ OpenAI API error:', errorMessage);
       throw new Error(`OpenAI API error: ${errorMessage}`);
     }
 
@@ -367,13 +360,11 @@ export function validateOpenAIApiKey(apiKey: string): { isValid: boolean; error?
     return { isValid: false, error: 'API key is required' };
   }
   
-  // Check if it starts with sk- (standard OpenAI format)
   if (!apiKey.startsWith('sk-')) {
     return { isValid: false, error: 'API key must start with "sk-"' };
   }
   
-  // Check minimum length
-  if (apiKey.length < 40) {
+  if (apiKey.length < 20) {
     return { isValid: false, error: 'API key appears to be too short' };
   }
   

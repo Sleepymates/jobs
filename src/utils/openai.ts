@@ -63,12 +63,9 @@ export const analyzeApplicant = async (
     console.log('🔍 Starting comprehensive CV analysis...');
     
     // Check if API key is available
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured. Please check your environment variables.');
+    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
-    
-    console.log('🔑 API Key found:', apiKey.substring(0, 7) + '...');
     
     // Extract text from the actual uploaded CV file
     let cvText = '';
@@ -665,12 +662,9 @@ export const evaluateApplicant = async (
     console.log('🎯 Starting final evaluation...');
     
     // Check if API key is available
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OpenAI API key not configured. Please check your environment variables.');
+    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
     }
-    
-    console.log('🔑 API Key found for evaluation:', apiKey.substring(0, 7) + '...');
     
     // Extract text from the actual uploaded CV file
     let cvText = '';

@@ -59,13 +59,25 @@ export const analyzeApplicant = async (
     
     // Check if API key is available
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    
+    console.log('🔑 API Key Debug Info:');
+    console.log('  - API Key exists:', !!apiKey);
+    console.log('  - API Key length:', apiKey?.length || 0);
+    console.log('  - API Key starts with sk-:', apiKey?.startsWith('sk-') || false);
+    console.log('  - API Key preview:', apiKey ? `${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 10)}` : 'NOT_FOUND');
+    
     if (!apiKey) {
-      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
+      throw new Error('❌ OpenAI API key not found! Please set VITE_OPENAI_API_KEY in Netlify environment variables.');
     }
     
     // Validate API key format
     if (!apiKey.startsWith('sk-')) {
-      throw new Error('Invalid OpenAI API key format. API key should start with "sk-"');
+      throw new Error(`❌ Invalid OpenAI API key format. Expected format: sk-... but got: ${apiKey.substring(0, 10)}...`);
+    }
+    
+    // Check API key length (OpenAI keys are typically 51+ characters)
+    if (apiKey.length < 50) {
+      throw new Error(`❌ OpenAI API key appears to be too short. Expected 50+ characters but got ${apiKey.length} characters.`);
     }
     
     console.log('✅ OpenAI API key found and validated');
@@ -680,13 +692,22 @@ export const evaluateApplicant = async (
     
     // Check if API key is available
     const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    
+    console.log('🔑 Final Evaluation - API Key Debug:');
+    console.log('  - API Key exists:', !!apiKey);
+    console.log('  - API Key length:', apiKey?.length || 0);
+    
     if (!apiKey) {
-      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
+      throw new Error('❌ OpenAI API key not found for final evaluation! Please set VITE_OPENAI_API_KEY in Netlify environment variables.');
     }
     
     // Validate API key format
     if (!apiKey.startsWith('sk-')) {
-      throw new Error('Invalid OpenAI API key format. API key should start with "sk-"');
+      throw new Error(`❌ Invalid OpenAI API key format for final evaluation. Expected format: sk-... but got: ${apiKey.substring(0, 10)}...`);
+    }
+    
+    if (apiKey.length < 50) {
+      throw new Error(`❌ OpenAI API key appears to be too short for final evaluation. Expected 50+ characters but got ${apiKey.length} characters.`);
     }
     
     // Extract text from the actual uploaded CV file

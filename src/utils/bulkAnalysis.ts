@@ -28,14 +28,21 @@ export const analyzeBulkCVs = async (
     console.log(`📝 Job description: ${jobDescription.substring(0, 100)}...`);
     
     // Check if API key is available
-    if (!import.meta.env.VITE_OPENAI_API_KEY) {
-      throw new Error('OpenAI API key not configured. Please set VITE_OPENAI_API_KEY in your environment variables.');
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    
+    console.log('🔑 Bulk Analysis - API Key Debug:');
+    console.log('  - API Key exists:', !!apiKey);
+    console.log('  - API Key length:', apiKey?.length || 0);
+    console.log('  - API Key starts with sk-:', apiKey?.startsWith('sk-') || false);
+    
+    if (!apiKey) {
+      throw new Error('❌ OpenAI API key not configured for bulk analysis. Please set VITE_OPENAI_API_KEY in your Netlify environment variables.');
     }
     
     // Validate API key
-    const keyValidation = validateOpenAIApiKey(import.meta.env.VITE_OPENAI_API_KEY);
+    const keyValidation = validateOpenAIApiKey(apiKey);
     if (!keyValidation.isValid) {
-      throw new Error(`Invalid OpenAI API key: ${keyValidation.error}`);
+      throw new Error(`❌ Invalid OpenAI API key for bulk analysis: ${keyValidation.error}`);
     }
     
     // Validate job description

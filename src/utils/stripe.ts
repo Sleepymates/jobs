@@ -7,6 +7,7 @@ interface CreateCheckoutSessionParams {
   cancelUrl: string;
   mode: 'payment' | 'subscription';
   quantity?: number;
+  metadata?: Record<string, string>;
 }
 
 interface CheckoutSessionResponse {
@@ -22,7 +23,8 @@ export async function createCheckoutSession({
   successUrl,
   cancelUrl,
   mode,
-  quantity = 1
+  quantity = 1,
+  metadata
 }: CreateCheckoutSessionParams): Promise<CheckoutSessionResponse> {
   try {
     console.log('Creating checkout session with params:', {
@@ -30,7 +32,8 @@ export async function createCheckoutSession({
       mode,
       quantity,
       successUrl,
-      cancelUrl
+      cancelUrl,
+      metadata
     });
 
     const { data, error } = await supabase.functions.invoke('stripe-checkout', {
@@ -39,7 +42,8 @@ export async function createCheckoutSession({
         success_url: successUrl,
         cancel_url: cancelUrl,
         mode,
-        quantity
+        quantity,
+        metadata
       }
     });
 
@@ -65,9 +69,15 @@ export async function createCheckoutSession({
 /**
  * Redirect to Stripe checkout
  */
-export async function redirectToCheckout(product: StripeProduct): Promise<void> {
+export async function redirectToCheckout(product: StripeProduct, userEmail?: string): Promise<void> {
   try {
-    const successUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+    let successUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+    
+    // For token products, add email to success URL
+    if (userEmail && product.tokens > 0) {
+      successUrl += `&email=${encodeURIComponent(userEmail)}&tokens=${product.tokens}`;
+    }
+    
     const cancelUrl = `${window.location.origin}/checkout/cancel`;
 
     const session = await createCheckoutSession({
@@ -75,7 +85,12 @@ export async function redirectToCheckout(product: StripeProduct): Promise<void> 
       successUrl,
       cancelUrl,
       mode: product.mode,
-      quantity: 1
+      quantity: 1,
+      metadata: userEmail && product.tokens > 0 ? {
+        user_email: userEmail,
+        tokens: product.tokens.toString(),
+        product_type: 'tokens'
+      } : undefined
     });
 
     // Redirect to Stripe checkout

@@ -91,6 +91,28 @@ async function handleEvent(event: Stripe.Event) {
       await syncCustomerFromStripe(customerId);
     } else if (mode === 'payment' && payment_status === 'paid') {
       try {
+        // Check if this is a token purchase
+        const metadata = (stripeData as Stripe.Checkout.Session).metadata;
+        const isTokenPurchase = metadata?.product_type === 'tokens';
+        
+        if (isTokenPurchase && metadata?.user_email && metadata?.tokens) {
+          console.info(`Processing token purchase for ${metadata.user_email}: ${metadata.tokens} tokens`);
+          
+          // Add tokens to user account using RPC function
+          const { error: tokenError } = await supabase.rpc('add_tokens_to_user', {
+            user_email_param: metadata.user_email,
+            tokens_to_add: parseInt(metadata.tokens),
+            transaction_description: `Token purchase - ${metadata.tokens} tokens`,
+            stripe_session_id_param: checkout_session_id
+          });
+          
+          if (tokenError) {
+            console.error('Error adding tokens to user:', tokenError);
+          } else {
+            console.info(`Successfully added ${metadata.tokens} tokens to ${metadata.user_email}`);
+          }
+        }
+        
         // Extract the necessary information from the session
         const {
           id: checkout_session_id,

@@ -38,7 +38,12 @@ const TokenPurchaseModal: React.FC<TokenPurchaseModalProps> = ({
         successUrl,
         cancelUrl,
         mode: product.mode,
-        quantity: 1
+        quantity: 1,
+        metadata: {
+          user_email: userEmail,
+          tokens: product.tokens.toString(),
+          product_type: 'tokens'
+        }
       });
 
       // Redirect to Stripe checkout

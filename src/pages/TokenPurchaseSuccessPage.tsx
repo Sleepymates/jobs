@@ -39,45 +39,37 @@ const TokenPurchaseSuccessPage: React.FC = () => {
         const tokensToAdd = parseInt(tokens, 10);
         const jobData = JSON.parse(decodeURIComponent(jobDataParam));
         
-        // Add tokens to user account
-        const success = await addTokensToUser(
-          email,
-          tokensToAdd,
-          sessionId,
-          `Token purchase - ${tokensToAdd} tokens`
-        );
-
-        if (success) {
-          // Get updated token info
-          const updatedTokenInfo = await getUserTokenInfo(email);
-          setTokenInfo(updatedTokenInfo);
-          
-          // Set purchase info for display
-          setPurchaseInfo({
-            tokensAdded: tokensToAdd,
-            sessionId
-          });
-          
-          toast.success(`Successfully added ${tokensToAdd} tokens to your account!`);
-          
-          // Now post the job
-          console.log('Posting job after successful token purchase...');
-          
-          // Import and call the job posting function
-          const { postJobToDatabase } = await import('../utils/jobPosting');
-          const jobResult = await postJobToDatabase(jobData);
-          
-          if (jobResult.success) {
-            toast.success('Job posted successfully!');
-            // Redirect to dashboard after a short delay
-            setTimeout(() => {
-              navigate(`/dashboard/${jobResult.jobId}`);
-            }, 2000);
-          } else {
-            throw new Error('Failed to post job after payment');
-          }
+        // Set purchase info for display
+        setPurchaseInfo({
+          tokensAdded: tokensToAdd,
+          sessionId
+        });
+        
+        toast.success(`Payment successful! Processing your token purchase...`);
+        
+        // Wait for webhook to process tokens (give it some time)
+        console.log('Waiting for webhook to process tokens...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Get updated token info
+        const updatedTokenInfo = await getUserTokenInfo(email);
+        setTokenInfo(updatedTokenInfo);
+        
+        // Now post the job
+        console.log('Posting job after successful token purchase...');
+        
+        // Import and call the job posting function
+        const { postJobToDatabase } = await import('../utils/jobPosting');
+        const jobResult = await postJobToDatabase(jobData);
+        
+        if (jobResult.success) {
+          toast.success('Job posted successfully!');
+          // Redirect to dashboard after a short delay
+          setTimeout(() => {
+            navigate(`/dashboard/${jobResult.jobId}`);
+          }, 2000);
         } else {
-          throw new Error('Failed to add tokens to account');
+          throw new Error('Failed to post job after payment');
         }
       } catch (error) {
         console.error('Error processing token purchase:', error);

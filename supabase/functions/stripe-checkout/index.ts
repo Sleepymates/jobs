@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
     });
 
     const { price_id, success_url, cancel_url, mode, quantity = 1 } = await req.json();
+    const metadata = req.body?.metadata;
 
     // Validate required parameters
     if (!price_id) {
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
       mode,
       success_url,
       cancel_url,
-      metadata: {
+      metadata: metadata || {
         quantity: quantity.toString(),
         product_type: 'cv_bulk_analyser',
         anonymous_purchase: 'true',

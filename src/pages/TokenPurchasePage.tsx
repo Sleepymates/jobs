@@ -47,7 +47,13 @@ const TokenPurchasePage: React.FC = () => {
         successUrl,
         cancelUrl,
         mode: product.mode,
-        quantity: 1
+        quantity: 1,
+        metadata: {
+          user_email: jobData.email,
+          tokens: product.tokens.toString(),
+          product_type: 'tokens',
+          job_data: JSON.stringify(jobData)
+        }
       });
 
       // Redirect to Stripe checkout

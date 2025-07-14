@@ -11,39 +11,39 @@ export interface StripeProduct {
 // Token-based products for job posting
 export const TOKEN_PRODUCTS: StripeProduct[] = [
   {
-    id: 'token_option_1',
-    priceId: 'price_1RkTpW2fD9xoCNc8saMFVfga', // Option 1 price ID
-    name: 'Option 1',
-    description: '10 tokens to view applicants',
-    price: 1.00,
-    tokens: 10,
-    mode: 'payment'
-  },
-  {
-    id: 'token_option_2',
-    priceId: 'price_1RkiIr2fD9xoCNc8wjDp4i5p', // Option 2 price ID
-    name: 'Option 2',
-    description: '50 tokens to view applicants',
-    price: 2.00,
-    tokens: 50,
-    mode: 'payment'
-  },
-  {
-    id: 'token_option_3',
-    priceId: 'price_1RkTq22fD9xoCNc8cCUs4cgB', // Option 3 price ID
-    name: 'Option 3',
+    id: 'sourcer',
+    priceId: 'price_1Rkk5b2fD9xoCNc8BgeRva6J',
+    name: 'Sourcer',
     description: '100 tokens to view applicants',
-    price: 3.50,
+    price: 25.00,
     tokens: 100,
     mode: 'payment'
   },
   {
-    id: 'token_option_4',
-    priceId: 'price_1RkTqF2fD9xoCNc8FzsiwyJY', // Option 4 price ID
-    name: 'Option 4',
-    description: '200 tokens to view applicants',
-    price: 6.00,
-    tokens: 200,
+    id: 'recruiter',
+    priceId: 'price_1RkiIr2fD9xoCNc8wjDp4i5p', // Option 2 price ID
+    name: 'Recruiter',
+    description: '300 tokens to view applicants',
+    price: 75.00,
+    tokens: 300,
+    mode: 'payment'
+  },
+  {
+    id: 'hiring_pro',
+    priceId: 'price_1RkTq22fD9xoCNc8cCUs4cgB', // Option 3 price ID
+    name: 'Hiring Pro',
+    description: '600 tokens to view applicants',
+    price: 150.00,
+    tokens: 600,
+    mode: 'payment'
+  },
+  {
+    id: 'chief_talent',
+    priceId: 'price_1Rkk4v2fD9xoCNc8Jev6K56x',
+    name: 'Chief Talent',
+    description: '1000 tokens to view applicants',
+    price: 250.00,
+    tokens: 1000,
     mode: 'payment'
   }
 ];
@@ -103,10 +103,10 @@ export const getTokenProductByPriceId = (priceId: string): StripeProduct | undef
 // Configuration for easy adjustment
 export const TOKEN_CONFIG = {
   // Token pricing (easily adjustable)
-  OPTION_1: { price: 1.00, tokens: 10 },
-  OPTION_2: { price: 2.00, tokens: 50 },
-  OPTION_3: { price: 3.50, tokens: 100 },
-  OPTION_4: { price: 6.00, tokens: 200 },
+  SOURCER: { price: 25.00, tokens: 100 },
+  RECRUITER: { price: 75.00, tokens: 300 },
+  HIRING_PRO: { price: 150.00, tokens: 600 },
+  CHIEF_TALENT: { price: 250.00, tokens: 1000 },
   
   // System settings
   TOKENS_PER_APPLICANT_VIEW: 1,

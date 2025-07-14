@@ -339,7 +339,7 @@ const DashboardPage: React.FC = () => {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 gap-4">
             <div className="flex-1">
               {/* Token Display */}
-              {tokenInfo && (
+              {tokenInfo && tokenInfo.tokensAvailable > 0 && (
                 <div className="mb-4">
                   <TokenDisplay
                     tokensAvailable={tokenInfo.tokensAvailable}

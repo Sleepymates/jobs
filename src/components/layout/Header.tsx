@@ -281,9 +281,6 @@ const Header: React.FC<HeaderProps> = ({ companyLogo, companyName }) => {
 
                 {isLoggedIn ? (
                   <>
-                    <div className="px-3 py-2">
-                      <SubscriptionStatus />
-                    </div>
                     <Button
                       onClick={() => {
                         navigateAndScrollToTop('/dashboard');

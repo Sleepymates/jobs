@@ -17,19 +17,32 @@ export interface ApplicantViewStatus {
  */
 export async function getUserTokenInfo(email: string): Promise<TokenInfo> {
   try {
+    // Set the email in the session for RLS
+    await supabase.rpc('set_config', {
+      setting_name: 'app.current_email',
+      setting_value: email
+    });
+
     const { data, error } = await supabase
-      .rpc('get_user_token_info', { user_email_param: email });
+      .from('user_tokens')
+      .select('tokens_available, tokens_used')
+      .eq('email', email)
+      .single();
 
     if (error) {
       console.error('Error fetching token info:', error);
+      // If no record exists, return zeros
+      if (error.code === 'PGRST116') {
+        return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
+      }
       return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
     }
 
-    if (data && data.length > 0) {
+    if (data) {
       return {
-        tokensAvailable: data[0].tokens_available || 0,
-        tokensUsed: data[0].tokens_used || 0,
-        totalPurchased: data[0].total_purchased || 0
+        tokensAvailable: data.tokens_available || 0,
+        tokensUsed: data.tokens_used || 0,
+        totalPurchased: (data.tokens_available || 0) + (data.tokens_used || 0)
       };
     }
 

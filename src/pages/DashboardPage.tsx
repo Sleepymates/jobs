@@ -42,7 +42,6 @@ const DashboardPage: React.FC = () => {
   const [notifyThreshold, setNotifyThreshold] = useState<number>(0);
   const [tokenInfo, setTokenInfo] = useState<any>(null);
   const [showTokenModal, setShowTokenModal] = useState(false);
-  const [hasPostedJob, setHasPostedJob] = useState(false);
 
   // Scroll to top on component mount
   useEffect(() => {
@@ -62,7 +61,6 @@ const DashboardPage: React.FC = () => {
       fetchJobData();
       fetchAllUserJobs();
       fetchTokenInfo();
-      setHasPostedJob(false); // Reset when component mounts
     }
   }, [jobId, isLoggedIn, email, passcode]);
   

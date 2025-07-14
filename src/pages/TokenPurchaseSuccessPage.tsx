@@ -87,6 +87,12 @@ const TokenPurchaseSuccessPage: React.FC = () => {
         // Now post the job
         console.log('Posting job after successful token purchase...');
         
+        // Check if job was already posted to prevent duplicates
+        if (jobPostResult) {
+          console.log('Job already posted, skipping duplicate posting');
+          return;
+        }
+        
         // Import and call the job posting function
         const { postJobToDatabase } = await import('../utils/jobPosting');
         const jobResult = await postJobToDatabase(jobData);

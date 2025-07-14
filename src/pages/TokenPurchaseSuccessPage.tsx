@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Coins, ArrowRight, Home } from 'lucide-react';
+import { CheckCircle, Coins, ArrowRight, Home, ExternalLink } from 'lucide-react';
 import Button from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import { FloatingPaths } from '../components/ui/background-paths';
-import { addTokensToUser, getUserTokenInfo } from '../utils/tokenUtils';
-import { getTokenProductByPriceId } from '../stripe-config';
+import { getUserTokenInfo } from '../utils/tokenUtils';
+import { generateJobUrl } from '../utils/urlHelpers';
+import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 
 const TokenPurchaseSuccessPage: React.FC = () => {
@@ -17,6 +18,7 @@ const TokenPurchaseSuccessPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [tokenInfo, setTokenInfo] = useState<any>(null);
   const [purchaseInfo, setPurchaseInfo] = useState<any>(null);
+  const [jobPostResult, setJobPostResult] = useState<any>(null);
 
   const sessionId = searchParams.get('session_id');
   const email = searchParams.get('email');
@@ -45,15 +47,42 @@ const TokenPurchaseSuccessPage: React.FC = () => {
           sessionId
         });
         
-        toast.success(`Payment successful! Processing your token purchase...`);
+        toast.success(`Payment successful! Adding tokens and posting your job...`);
         
-        // Wait for webhook to process tokens (give it some time)
+        // Wait for webhook to process tokens
         console.log('Waiting for webhook to process tokens...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        let attempts = 0;
+        let tokensAdded = false;
         
-        // Get updated token info
-        const updatedTokenInfo = await getUserTokenInfo(email);
-        setTokenInfo(updatedTokenInfo);
+        while (attempts < 10 && !tokensAdded) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          try {
+            const updatedTokenInfo = await getUserTokenInfo(email);
+            if (updatedTokenInfo.tokensAvailable >= tokensToAdd) {
+              setTokenInfo(updatedTokenInfo);
+              tokensAdded = true;
+              console.log('✅ Tokens successfully added to account');
+              break;
+            }
+          } catch (error) {
+            console.warn('Token check attempt failed:', error);
+          }
+          
+          attempts++;
+          console.log(`Checking tokens... attempt ${attempts}/10`);
+        }
+        
+        if (!tokensAdded) {
+          console.warn('⚠️ Tokens not detected after 20 seconds, proceeding anyway');
+          // Still try to get token info for display
+          try {
+            const updatedTokenInfo = await getUserTokenInfo(email);
+            setTokenInfo(updatedTokenInfo);
+          } catch (error) {
+            console.error('Failed to get token info:', error);
+          }
+        }
         
         // Now post the job
         console.log('Posting job after successful token purchase...');
@@ -63,11 +92,16 @@ const TokenPurchaseSuccessPage: React.FC = () => {
         const jobResult = await postJobToDatabase(jobData);
         
         if (jobResult.success) {
+          setJobPostResult(jobResult);
           toast.success('Job posted successfully!');
-          // Redirect to dashboard after a short delay
-          setTimeout(() => {
-            navigate(`/dashboard/${jobResult.jobId}`);
-          }, 2000);
+          
+          // Auto-login the user with their credentials
+          const { login } = await import('../store/authStore');
+          const authStore = useAuthStore.getState();
+          authStore.login(jobData.email, jobData.passcode);
+          
+          console.log('✅ User automatically logged in');
+          toast.success('You are now logged in to your dashboard!');
         } else {
           throw new Error('Failed to post job after payment');
         }
@@ -167,6 +201,40 @@ const TokenPurchaseSuccessPage: React.FC = () => {
                       </div>
                     </div>
                   )}
+                {jobPostResult && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-6">
+                    <div className="flex items-center justify-center mb-4">
+                      <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
+                    </div>
+                    <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2 text-lg">
+                      🎉 Job Posted Successfully!
+                    </h3>
+                    <p className="text-green-700 dark:text-green-400 text-sm mb-4">
+                      Your job is now live and ready to receive applications. You're automatically logged in to manage it.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button
+                        onClick={() => {
+                          const jobUrl = generateJobUrl(jobData.companyName, jobData.title, jobPostResult.jobId);
+                          window.open(`${window.location.origin}${jobUrl}`, '_blank');
+                        }}
+                        variant="outline"
+                        className="flex items-center gap-2 text-green-700 border-green-300 hover:bg-green-50"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        View Job Post
+                      </Button>
+                      <Button
+                        onClick={() => navigate(`/dashboard/${jobPostResult.jobId}`)}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        Go to Dashboard
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
 
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                     <h4 className="font-medium text-gray-900 dark:text-white mb-2">
@@ -192,13 +260,23 @@ const TokenPurchaseSuccessPage: React.FC = () => {
                   )}
 
                   <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                    <Button
-                      onClick={() => navigate('/forgot')}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      <ArrowRight className="h-4 w-4 mr-2" />
-                      Go to Dashboard
-                    </Button>
+                    {jobPostResult ? (
+                      <Button
+                        onClick={() => navigate(`/dashboard/${jobPostResult.jobId}`)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        Manage Your Job
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => navigate('/forgot')}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        Go to Dashboard
+                      </Button>
+                    )}
                     
                     <Button
                       onClick={() => navigate('/')}

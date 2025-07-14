@@ -17,24 +17,14 @@ export interface ApplicantViewStatus {
  */
 export async function getUserTokenInfo(email: string): Promise<TokenInfo> {
   try {
-    // Set the email in the session for RLS
-    await supabase.rpc('set_config', {
-      setting_name: 'app.current_email',
-      setting_value: email
-    });
-
     const { data, error } = await supabase
       .from('user_tokens')
       .select('tokens_available, tokens_used')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('Error fetching token info:', error);
-      // If no record exists, return zeros
-      if (error.code === 'PGRST116') {
-        return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
-      }
       return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
     }
 
@@ -46,6 +36,7 @@ export async function getUserTokenInfo(email: string): Promise<TokenInfo> {
       };
     }
 
+    // No record found, return zeros
     return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
   } catch (error) {
     console.error('Error in getUserTokenInfo:', error);
@@ -104,12 +95,6 @@ export async function useTokenToViewApplicant(
   jobId: string
 ): Promise<boolean> {
   try {
-    // Set the email in the session for RLS
-    await supabase.rpc('set_config', {
-      setting_name: 'app.current_email',
-      setting_value: email
-    });
-
     const { data, error } = await supabase
       .rpc('use_token', {
         user_email_param: email,

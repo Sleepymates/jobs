@@ -21,7 +21,7 @@ export const TOKEN_PRODUCTS: StripeProduct[] = [
   },
   {
     id: 'token_option_2',
-    priceId: 'price_1RkTpm2fD9xoCNc8StYO7TyK', // Option 2 price ID
+    priceId: 'price_1RkiIr2fD9xoCNc8wjDp4i5p', // Option 2 price ID
     name: 'Option 2',
     description: '50 tokens to view applicants',
     price: 2.00,

@@ -95,6 +95,8 @@ export async function useTokenToViewApplicant(
   jobId: string
 ): Promise<boolean> {
   try {
+    console.log('Using token to view applicant:', { email, applicantId, jobId });
+    
     const { data, error } = await supabase
       .rpc('use_token', {
         user_email_param: email,
@@ -103,7 +105,7 @@ export async function useTokenToViewApplicant(
       });
 
     if (error) {
-      console.error('Error using token:', error);
+      console.error('Error using token RPC:', error);
       return false;
     }
 
@@ -160,6 +162,7 @@ export async function getApplicantsWithViewStatus(
       .order('created_at', { ascending: false });
 
     if (applicantsError) {
+      console.error('Error fetching applicants:', applicantsError);
       throw applicantsError;
     }
 
@@ -182,6 +185,7 @@ export async function getApplicantsWithViewStatus(
 
     // Get user token info
     const tokenInfo = await getUserTokenInfo(email);
+    console.log('Token info for applicant view status:', tokenInfo);
 
     // Mark applicants with view status
     return applicants.map(applicant => ({

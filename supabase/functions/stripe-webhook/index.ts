@@ -98,6 +98,8 @@ async function handleEvent(event: Stripe.Event) {
         if (isTokenPurchase && metadata?.user_email && metadata?.tokens) {
           console.info(`Processing token purchase for ${metadata.user_email}: ${metadata.tokens} tokens`);
           
+          const { id: checkout_session_id } = stripeData as Stripe.Checkout.Session;
+          
           // Add tokens to user account using RPC function
           const { error: tokenError } = await supabase.rpc('add_tokens_to_user', {
             user_email_param: metadata.user_email,

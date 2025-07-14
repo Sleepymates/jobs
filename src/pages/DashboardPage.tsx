@@ -677,9 +677,12 @@ const DashboardPage: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Button
                             size="sm"
-                            onClick={() => setSelectedApplicant(applicant)}
+                            onClick={() => handleViewApplicant(applicant)}
+                            disabled={applicant.requiresToken && (!tokenInfo || tokenInfo.tokensAvailable <= 0)}
+                            className={applicant.requiresToken ? 'bg-amber-600 hover:bg-amber-700' : ''}
                           >
-                            View Details
+                            {applicant.hasViewed ? 'View Details' : 
+                             applicant.requiresToken ? '🔒 Use 1 Token' : 'View Details'}
                           </Button>
                         </td>
                       </tr>

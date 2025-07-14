@@ -15,7 +15,7 @@ export const TOKEN_PRODUCTS: StripeProduct[] = [
     priceId: 'price_1RkTpW2fD9xoCNc8saMFVfga', // Option 1 price ID
     name: 'Option 1',
     description: '10 tokens to view applicants',
-    price: 0.50,
+    price: 1.00,
     tokens: 10,
     mode: 'payment'
   },
@@ -103,7 +103,7 @@ export const getTokenProductByPriceId = (priceId: string): StripeProduct | undef
 // Configuration for easy adjustment
 export const TOKEN_CONFIG = {
   // Token pricing (easily adjustable)
-  OPTION_1: { price: 0.50, tokens: 10 },
+  OPTION_1: { price: 1.00, tokens: 10 },
   OPTION_2: { price: 2.00, tokens: 50 },
   OPTION_3: { price: 3.50, tokens: 100 },
   OPTION_4: { price: 6.00, tokens: 200 },

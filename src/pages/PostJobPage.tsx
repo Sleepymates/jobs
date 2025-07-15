@@ -60,7 +60,7 @@ const PostJobPage: React.FC = () => {
     if (!title.trim()) newErrors.title = 'Job title is required';
     if (!description.trim()) newErrors.description = 'Job description is required';
     if (!email.trim()) newErrors.email = 'Email is required';
-    if (!email.includes('@')) newErrors.email = 'Please enter a valid email';
+    if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Please enter a valid email address with a proper domain';
     if (!passcode.trim()) newErrors.passcode = 'Passcode is required';
     if (passcode.length < 6) newErrors.passcode = 'Passcode must be at least 6 characters';
     if (!companyName.trim()) newErrors.companyName = 'Company name is required';
@@ -76,7 +76,7 @@ const PostJobPage: React.FC = () => {
     return title.trim() && 
            description.trim() && 
            email.trim() && 
-           email.includes('@') && 
+           /\S+@\S+\.\S+/.test(email) && 
            passcode.trim() && 
            passcode.length >= 6 && 
            companyName.trim();

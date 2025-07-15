@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabase/supabaseClient';
 import { Card } from '../components/ui/Card';
-import { Button } from '../components/ui/button';
+import Button from '../components/ui/button';
 import { Input } from '../components/ui/Input';
 import { Eye, Download, Search, Filter, Users, Clock, Star, ChevronDown, ChevronUp, Coins } from 'lucide-react';
 import { toast } from 'react-hot-toast';

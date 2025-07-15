@@ -12,13 +12,40 @@ export async function getUserTokens(email: string): Promise<TokenInfo> {
   try {
     console.log('Getting tokens for user:', email);
     
-    const { data, error } = await supabase
-      .rpc('get_user_tokens', {
-        user_email_param: email
-      });
+    // Try RPC function first, fallback to direct query
+    let data, error;
+    try {
+      const result = await supabase
+        .rpc('get_user_tokens', {
+          user_email_param: email
+        });
+      data = result.data;
+      error = result.error;
+    } catch (rpcError) {
+      console.warn('RPC function not available, using direct query');
+      const result = await supabase
+        .from('user_tokens')
+        .select('tokens_available, tokens_used')
+        .eq('email', email)
+        .single();
+      
+      if (result.data) {
+        data = [{
+          tokens_available: result.data.tokens_available || 0,
+          tokens_used: result.data.tokens_used || 0
+        }];
+      } else {
+        data = null;
+      }
+      error = result.error;
+    }
 
     if (error) {
-      console.error('Error fetching user tokens:', error);
+      if (error.code === 'PGRST116') {
+        // User not found, return zero tokens
+        return { tokensAvailable: 0, tokensUsed: 0 };
+      }
+      console.warn('Error fetching user tokens:', error);
       return { tokensAvailable: 0, tokensUsed: 0 };
     }
 
@@ -49,12 +76,68 @@ export async function useTokenForApplicant(
   try {
     console.log('Using token for applicant:', { userEmail, applicantId, jobId });
     
-    const { data, error } = await supabase
-      .rpc('use_token_for_applicant', {
-        user_email_param: userEmail,
-        applicant_id_param: applicantId,
-        job_id_param: jobId
-      });
+    // Try RPC function first, fallback to manual process
+    let data, error;
+    try {
+      const result = await supabase
+        .rpc('use_token_for_applicant', {
+          user_email_param: userEmail,
+          applicant_id_param: applicantId,
+          job_id_param: jobId
+        });
+      data = result.data;
+      error = result.error;
+    } catch (rpcError) {
+      console.warn('RPC function not available, using manual token deduction');
+      
+      // Manual fallback process
+      // 1. Check if already viewed
+      const { data: existingView } = await supabase
+        .from('applicant_views')
+        .select('id')
+        .eq('user_email', userEmail)
+        .eq('applicant_id', applicantId)
+        .single();
+      
+      if (existingView) {
+        return true; // Already viewed, no token needed
+      }
+      
+      // 2. Check token balance
+      const { data: tokenData } = await supabase
+        .from('user_tokens')
+        .select('tokens_available')
+        .eq('email', userEmail)
+        .single();
+      
+      if (!tokenData || tokenData.tokens_available < 1) {
+        return false; // Insufficient tokens
+      }
+      
+      // 3. Deduct token and record view
+      const { error: updateError } = await supabase
+        .from('user_tokens')
+        .update({ 
+          tokens_available: tokenData.tokens_available - 1,
+          tokens_used: (tokenData.tokens_used || 0) + 1
+        })
+        .eq('email', userEmail);
+      
+      if (updateError) {
+        throw updateError;
+      }
+      
+      // 4. Record the view
+      await supabase
+        .from('applicant_views')
+        .insert({
+          user_email: userEmail,
+          applicant_id: applicantId,
+          job_id: jobId
+        });
+      
+      return true;
+    }
 
     if (error) {
       console.error('Error using token:', error);
@@ -112,7 +195,37 @@ export async function getApplicantsWithViewStatus(
   try {
     console.log('Getting applicants with view status:', { jobId, userEmail });
     
-    const { data, error } = await supabase
+    // Try RPC function first, fallback to manual join
+    let data, error;
+    try {
+      const result = await supabase
+        .rpc('get_applicants_with_view_status', {
+          p_job_id: jobId,
+          p_user_email: userEmail
+        });
+      data = result.data;
+      error = result.error;
+    } catch (rpcError) {
+      console.warn('RPC function not available, using manual query');
+      
+      // Fallback: get basic applicants and mark all as not viewed
+      const result = await supabase
+        .from('applicants')
+        .select('*')
+        .eq('job_id', jobId);
+      
+      if (result.data) {
+        data = result.data.map(applicant => ({
+          ...applicant,
+          has_viewed: false,
+          can_view: true,
+          requires_token: true
+        }));
+      } else {
+        data = [];
+      }
+      error = result.error;
+    }
       .rpc('get_applicants_with_view_status', {
         p_job_id: jobId,
         p_user_email: userEmail

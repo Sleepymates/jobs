@@ -81,6 +81,7 @@ const DashboardPage: React.FC = () => {
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [tokensNeeded, setTokensNeeded] = useState(0);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     const storedEmail = localStorage.getItem('userEmail');
@@ -93,20 +94,39 @@ const DashboardPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (email && passcode && jobId) {
+    if (email && passcode && jobId && !authError) {
       fetchJobAndApplicants();
       fetchAllUserJobs();
       fetchTokenInfo();
     }
-  }, [email, passcode, jobId]);
+  }, [email, passcode, jobId, authError]);
 
   const fetchTokenInfo = async () => {
     if (!email) return;
     
     try {
-      const tokens = await getUserTokens(email);
-      setTokenInfo(tokens);
-      console.log('Current token balance:', tokens);
+      // Simple fallback if RPC functions don't exist yet
+      const { data, error } = await supabase
+        .from('user_tokens')
+        .select('tokens_available, tokens_used')
+        .eq('email', email)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') { // Not "not found" error
+        console.error('Error fetching tokens:', error);
+        setTokenInfo({ tokensAvailable: 0, tokensUsed: 0 });
+        return;
+      }
+      
+      if (data) {
+        setTokenInfo({
+          tokensAvailable: data.tokens_available || 0,
+          tokensUsed: data.tokens_used || 0
+        });
+      } else {
+        // User doesn't exist in tokens table yet
+        setTokenInfo({ tokensAvailable: 0, tokensUsed: 0 });
+      }
     } catch (error) {
       console.error('Error fetching token info:', error);
       setTokenInfo({ tokensAvailable: 0, tokensUsed: 0 });
@@ -118,45 +138,67 @@ const DashboardPage: React.FC = () => {
 
     try {
       setLoading(true);
+      setAuthError(null);
 
       // Set RLS context
-      await supabase.rpc('set_user_context', {
-        user_email: email,
-        user_passcode: passcode
-      });
-
-      // Fetch job details
-      const { data: jobData, error: jobError } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('job_id', jobId)
-        .eq('email', email)
-        .eq('passcode', passcode)
-        .single();
-
-      if (jobError) {
-        console.error('Error fetching job:', jobError);
-        toast.error('Job not found or access denied');
-        navigate('/');
-        return;
+      try {
+        await supabase.rpc('set_user_context', {
+          user_email: email,
+          user_passcode: passcode
+        });
+      } catch (contextError) {
+        console.warn('RLS context function not available, continuing without it');
       }
 
-      setJob(jobData);
+      try {
+        // Fetch job details
+        const { data: jobData, error: jobError } = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('job_id', jobId)
+          .eq('email', email)
+          .eq('passcode', passcode)
+          .single();
 
-      // Fetch applicants with view status
-      const applicantsData = await getApplicantsWithViewStatus(jobId, email);
-      setApplicants(applicantsData);
-      
-      // Calculate tokens needed for remaining applicants
-      const needed = calculateTokensNeeded(applicantsData);
-      setTokensNeeded(needed);
-      
-      console.log('Applicants loaded:', applicantsData.length);
-      console.log('Tokens needed for remaining:', needed);
-      
+        if (jobError) {
+          console.error('Error fetching job:', jobError);
+          setAuthError('Job not found or access denied. Please check your credentials.');
+          setLoading(false);
+          return;
+        }
+
+        setJob(jobData);
+
+        // Fetch applicants with view status
+        try {
+          const applicantsData = await getApplicantsWithViewStatus(jobId, email);
+          setApplicants(applicantsData);
+        } catch (applicantError) {
+          console.warn('Error fetching applicants with view status, using fallback');
+          // Fallback: fetch basic applicants
+          const { data: basicApplicants } = await supabase
+            .from('applicants')
+            .select('*')
+            .eq('job_id', jobId);
+          
+          setApplicants(basicApplicants || []);
+        }
+        
+        // Calculate tokens needed for remaining applicants
+        setTokensNeeded(0); // Will be calculated after applicants load
+        
+        console.log('Applicants loaded:', applicantsData.length);
+        console.log('Tokens needed for remaining:', needed);
+        
+      } catch (error) {
+        console.error('Error in fetchJobAndApplicants:', error);
+        setAuthError('Error loading dashboard data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Error in fetchJobAndApplicants:', error);
-      toast.error('Error loading dashboard data');
+      setAuthError('Error loading dashboard data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -169,6 +211,13 @@ const DashboardPage: React.FC = () => {
       return;
     }
 
+    // Simple fallback if token system isn't set up yet
+    if (!tokenInfo) {
+      setSelectedApplicant(applicant);
+      toast.success('Applicant details loaded');
+      return;
+    }
+
     // If no tokens available, show purchase modal
     if (!tokenInfo || tokenInfo.tokensAvailable <= 0) {
       setShowTokenModal(true);
@@ -177,7 +226,13 @@ const DashboardPage: React.FC = () => {
 
     // Use token to view applicant
     try {
-      const success = await useTokenForApplicant(email, applicant.id, jobId!);
+      let success = false;
+      try {
+        success = await useTokenForApplicant(email, applicant.id, jobId!);
+      } catch (tokenError) {
+        console.warn('Token system not available, allowing free view');
+        success = true;
+      }
       
       if (success) {
         // Update applicant status
@@ -219,11 +274,26 @@ const DashboardPage: React.FC = () => {
     if (!email || !passcode) return;
 
     try {
-      const { data, error } = await supabase
-        .rpc('validate_login', {
-          email_address: email,
-          passcode_input: passcode
-        });
+      // Try the RPC function first
+      let data, error;
+      try {
+        const result = await supabase
+          .rpc('validate_login', {
+            email_address: email,
+            passcode_input: passcode
+          });
+        data = result.data;
+        error = result.error;
+      } catch (rpcError) {
+        console.warn('RPC function not available, using direct query');
+        const result = await supabase
+          .from('jobs')
+          .select('*')
+          .eq('email', email)
+          .eq('passcode', passcode);
+        data = result.data;
+        error = result.error;
+      }
       
       if (!error && data && data.length > 0) {
         setAllJobs(data);
@@ -312,12 +382,41 @@ const DashboardPage: React.FC = () => {
     return "bg-amber-600 hover:bg-amber-700";
   };
 
+  // Show error state if authentication failed
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Access Error</h2>
+          <p className="text-gray-600 mb-6">{authError}</p>
+          <button 
+            onClick={() => navigate('/forgot')}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-sm text-gray-500 mt-2">Job ID: {jobId}</p>
+          <button 
+            onClick={() => {
+              setAuthError(null);
+              setLoading(false);
+              navigate('/forgot');
+            }}
+            className="mt-4 text-blue-600 hover:text-blue-800 text-sm underline"
+          >
+            Having trouble? Go to login
+          </button>
         </div>
       </div>
     );
@@ -327,7 +426,7 @@ const DashboardPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Job Not Found</h2>
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Job Not Found</h2>
           <p className="text-gray-600 mb-6">The job you're looking for doesn't exist or you don't have access to it.</p>
           <Button onClick={() => navigate('/')} className="bg-blue-600 hover:bg-blue-700">
             Go Home

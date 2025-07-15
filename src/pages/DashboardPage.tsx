@@ -679,11 +679,12 @@ const DashboardPage: React.FC = () => {
                           <Button
                             size="sm"
                             onClick={() => handleViewApplicant(applicant)}
-                            disabled={applicant.requiresToken && (!tokenInfo || tokenInfo.tokensAvailable <= 0)}
-                            className={applicant.requiresToken ? 'bg-amber-600 hover:bg-amber-700' : ''}
+                            disabled={!applicant.hasViewed && (!tokenInfo || tokenInfo.tokensAvailable <= 0)}
+                            className={!applicant.hasViewed && (!tokenInfo || tokenInfo.tokensAvailable <= 0) ? 'bg-gray-400 cursor-not-allowed' : 
+                                     !applicant.hasViewed ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
                           >
                             {applicant.hasViewed ? 'View Details' : 
-                             applicant.requiresToken ? '🔒 Use 1 Token' : 'View Details'}
+                             (!tokenInfo || tokenInfo.tokensAvailable <= 0) ? '🔒 No Tokens' : '🔒 Use 1 Token'}
                           </Button>
                         </td>
                       </tr>

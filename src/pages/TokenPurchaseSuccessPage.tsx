@@ -54,12 +54,14 @@ const TokenPurchaseSuccessPage: React.FC = () => {
         let attempts = 0;
         let tokensAdded = false;
         
-        while (attempts < 6 && !tokensAdded) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        while (attempts < 10 && !tokensAdded) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
           try {
             const updatedTokenInfo = await getUserTokenInfo(email);
-            if (updatedTokenInfo.tokensAvailable >= tokensToAdd) {
+            console.log(`Attempt ${attempts + 1}: Token check result:`, updatedTokenInfo);
+            
+            if (updatedTokenInfo.tokensAvailable > 0) {
               setTokenInfo(updatedTokenInfo);
               tokensAdded = true;
               console.log('✅ Tokens successfully added to account');
@@ -70,11 +72,11 @@ const TokenPurchaseSuccessPage: React.FC = () => {
           }
           
           attempts++;
-          console.log(`Checking tokens... attempt ${attempts}/6`);
+          console.log(`Checking tokens... attempt ${attempts}/10`);
         }
         
         if (!tokensAdded) {
-          console.warn('⚠️ Tokens not detected after 6 seconds, proceeding anyway');
+          console.warn('⚠️ Tokens not detected after 20 seconds, proceeding anyway');
           // Still try to get token info for display
           try {
             const updatedTokenInfo = await getUserTokenInfo(email);

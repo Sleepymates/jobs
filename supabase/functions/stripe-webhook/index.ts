@@ -101,37 +101,52 @@ async function handleEvent(event: Stripe.Event) {
           const { id: checkout_session_id } = stripeData as Stripe.Checkout.Session;
           
           try {
+            console.log('Calling add_tokens_to_user with params:', {
+              user_email_param: metadata.user_email,
+              tokens_to_add: parseInt(metadata.tokens),
+              transaction_description: `Stripe purchase - ${metadata.tokens} tokens`,
+              stripe_session_id_param: checkout_session_id
+            });
+            
             // Add tokens to user account using RPC function
             const { data: tokenResult, error: tokenError } = await supabase.rpc('add_tokens_to_user', {
               user_email_param: metadata.user_email,
               tokens_to_add: parseInt(metadata.tokens),
-              transaction_description: `Token purchase - ${metadata.tokens} tokens`,
+              transaction_description: `Stripe purchase - ${metadata.tokens} tokens`,
               stripe_session_id_param: checkout_session_id
             });
           
+            console.log('RPC call result:', { tokenResult, tokenError });
+            
             if (tokenError) {
               console.error('Error adding tokens to user:', tokenError);
               throw tokenError;
             }
             
-            if (tokenResult === false) {
-              console.error('Token addition function returned false');
-              throw new Error('Token addition failed');
+            if (!tokenResult) {
+              console.error('Token addition function returned false or null');
+              throw new Error('Token addition failed - function returned false');
             }
             
             console.info(`Successfully added ${metadata.tokens} tokens to ${metadata.user_email}`);
             
             // Verify tokens were added
-            const { data: verifyData, error: verifyError } = await supabase.rpc('get_user_token_info', {
+            console.log('Verifying token addition...');
+            const { data: verifyData, error: verifyError } = await supabase
+              .rpc('get_user_token_info', {
               user_email_param: metadata.user_email
-            });
+              });
+            
+            console.log('Verification result:', { verifyData, verifyError });
             
             if (!verifyError && verifyData && verifyData.length > 0) {
               console.info(`Token verification: User ${metadata.user_email} now has ${verifyData[0].tokens_available} tokens available`);
+            } else {
+              console.warn('Token verification failed or returned no data');
             }
             
           } catch (error) {
-            console.error('Failed to process token purchase:', error);
+            console.error('Failed to process token purchase - detailed error:', error);
             // Don't throw here to avoid webhook retry loops
           }
         }

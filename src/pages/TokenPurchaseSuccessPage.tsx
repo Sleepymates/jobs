@@ -61,7 +61,7 @@ const TokenPurchaseSuccessPage: React.FC = () => {
             const updatedTokenInfo = await getUserTokenInfo(email);
             console.log(`Attempt ${attempts + 1}: Token check result:`, updatedTokenInfo);
             
-            if (updatedTokenInfo.tokensAvailable > 0) {
+            if (updatedTokenInfo.tokensAvailable >= tokensToAdd) {
               setTokenInfo(updatedTokenInfo);
               tokensAdded = true;
               console.log('✅ Tokens successfully added to account');

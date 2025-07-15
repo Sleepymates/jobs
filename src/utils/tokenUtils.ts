@@ -19,14 +19,17 @@ export async function getUserTokenInfo(email: string): Promise<TokenInfo> {
   try {
     console.log('Getting token info for:', email);
     
-    const { data, error } = await supabase.rpc('get_user_token_info', {
+    const { data, error } = await supabase
+      .rpc('get_user_token_info', {
       user_email_param: email
-    });
+      });
 
     if (error) {
       console.error('Error fetching token info:', error);
       return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
     }
+
+    console.log('Raw token data from RPC:', data);
 
     if (data && data.length > 0) {
       const tokenData = data[0];
@@ -100,12 +103,11 @@ export async function useTokenToViewApplicant(
   try {
     console.log('Using token to view applicant:', { email, applicantId, jobId });
     
-    const { data, error } = await supabase
-      .rpc('use_token', {
+    const { data, error } = await supabase.rpc('use_token', {
         user_email_param: email,
         applicant_id_param: applicantId,
         job_id_param: jobId
-      });
+    });
 
     if (error) {
       console.error('Error using token RPC:', error);
@@ -113,7 +115,7 @@ export async function useTokenToViewApplicant(
     }
 
     console.log('Token usage result:', data);
-    return data === true;
+    return data === true || data === 't'; // PostgreSQL might return 't' for true
   } catch (error) {
     console.error('Error in useTokenToViewApplicant:', error);
     return false;

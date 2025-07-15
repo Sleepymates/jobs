@@ -48,6 +48,11 @@ const DashboardPage: React.FC = () => {
     window.scrollTo(0, 0);
   }, []);
 
+    if (!email) {
+      toast.error('User email not found');
+      return;
+    }
+    
   // Check authentication and redirect if needed
   useEffect(() => {
     if (!isLoggedIn || !email || !passcode) {
@@ -141,8 +146,14 @@ const DashboardPage: React.FC = () => {
     if (!email || !passcode) return;
 
     try {
+    console.log('Using token to view applicant:', {
+      email,
+      applicantId: applicant.id,
+      jobId: jobId
+    });
+    
       const { data, error } = await supabase
-        .rpc('validate_login', {
+    const success = await useTokenToViewApplicant(email, applicant.id, jobId!);
           email_address: email,
           passcode_input: passcode
         });
@@ -157,7 +168,15 @@ const DashboardPage: React.FC = () => {
   
   const handleSort = (field: string) => {
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      
+      // Update the applicants list to reflect the change
+      setApplicants(prevApplicants => 
+        prevApplicants.map(app => 
+          app.id === applicant.id 
+            ? { ...app, hasViewed: true, canView: true, requiresToken: false }
+            : app
+        )
+      );
     } else {
       setSortField(field);
       setSortDirection('desc');

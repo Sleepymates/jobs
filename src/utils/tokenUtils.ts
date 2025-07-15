@@ -226,10 +226,6 @@ export async function getApplicantsWithViewStatus(
       }
       error = result.error;
     }
-      .rpc('get_applicants_with_view_status', {
-        p_job_id: jobId,
-        p_user_email: userEmail
-      });
 
     if (error) {
       console.error('Error fetching applicants with view status:', error);

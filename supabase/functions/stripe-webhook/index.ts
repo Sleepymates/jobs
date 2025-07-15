@@ -100,18 +100,39 @@ async function handleEvent(event: Stripe.Event) {
           
           const { id: checkout_session_id } = stripeData as Stripe.Checkout.Session;
           
-          // Add tokens to user account using RPC function
-          const { error: tokenError } = await supabase.rpc('add_tokens_to_user', {
-            user_email_param: metadata.user_email,
-            tokens_to_add: parseInt(metadata.tokens),
-            transaction_description: `Token purchase - ${metadata.tokens} tokens`,
-            stripe_session_id_param: checkout_session_id
-          });
+          try {
+            // Add tokens to user account using RPC function
+            const { data: tokenResult, error: tokenError } = await supabase.rpc('add_tokens_to_user', {
+              user_email_param: metadata.user_email,
+              tokens_to_add: parseInt(metadata.tokens),
+              transaction_description: `Token purchase - ${metadata.tokens} tokens`,
+              stripe_session_id_param: checkout_session_id
+            });
           
-          if (tokenError) {
-            console.error('Error adding tokens to user:', tokenError);
-          } else {
+            if (tokenError) {
+              console.error('Error adding tokens to user:', tokenError);
+              throw tokenError;
+            }
+            
+            if (tokenResult === false) {
+              console.error('Token addition function returned false');
+              throw new Error('Token addition failed');
+            }
+            
             console.info(`Successfully added ${metadata.tokens} tokens to ${metadata.user_email}`);
+            
+            // Verify tokens were added
+            const { data: verifyData, error: verifyError } = await supabase.rpc('get_user_token_info', {
+              user_email_param: metadata.user_email
+            });
+            
+            if (!verifyError && verifyData && verifyData.length > 0) {
+              console.info(`Token verification: User ${metadata.user_email} now has ${verifyData[0].tokens_available} tokens available`);
+            }
+            
+          } catch (error) {
+            console.error('Failed to process token purchase:', error);
+            // Don't throw here to avoid webhook retry loops
           }
         }
         

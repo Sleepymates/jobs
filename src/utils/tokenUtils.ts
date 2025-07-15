@@ -17,26 +17,29 @@ export interface ApplicantViewStatus {
  */
 export async function getUserTokenInfo(email: string): Promise<TokenInfo> {
   try {
-    const { data, error } = await supabase
-      .from('user_tokens')
-      .select('tokens_available, tokens_used')
-      .eq('email', email)
-      .maybeSingle();
+    console.log('Getting token info for:', email);
+    
+    const { data, error } = await supabase.rpc('get_user_token_info', {
+      user_email_param: email
+    });
 
     if (error) {
       console.error('Error fetching token info:', error);
       return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
     }
 
-    if (data) {
+    if (data && data.length > 0) {
+      const tokenData = data[0];
+      console.log('Token info retrieved:', tokenData);
       return {
-        tokensAvailable: data.tokens_available || 0,
-        tokensUsed: data.tokens_used || 0,
-        totalPurchased: (data.tokens_available || 0) + (data.tokens_used || 0)
+        tokensAvailable: tokenData.tokens_available || 0,
+        tokensUsed: tokenData.tokens_used || 0,
+        totalPurchased: tokenData.total_purchased || 0
       };
     }
 
     // No record found, return zeros
+    console.log('No token record found for user:', email);
     return { tokensAvailable: 0, tokensUsed: 0, totalPurchased: 0 };
   } catch (error) {
     console.error('Error in getUserTokenInfo:', error);
@@ -109,6 +112,7 @@ export async function useTokenToViewApplicant(
       return false;
     }
 
+    console.log('Token usage result:', data);
     return data === true;
   } catch (error) {
     console.error('Error in useTokenToViewApplicant:', error);

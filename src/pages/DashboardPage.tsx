@@ -68,9 +68,10 @@ const DashboardPage: React.FC = () => {
     if (!email) return;
     
     try {
+      console.log('Fetching token info for dashboard:', email);
       const tokens = await getUserTokenInfo(email);
+      console.log('Token info received in dashboard:', tokens);
       setTokenInfo(tokens);
-      console.log('Token info fetched:', tokens);
     } catch (error) {
       console.error('Error fetching token info:', error);
     }

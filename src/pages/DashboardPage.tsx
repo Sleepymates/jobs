@@ -4,9 +4,10 @@ import { supabase } from '../supabase/supabaseClient';
 import { Card } from '../components/ui/Card';
 import Button from '../components/ui/button';
 import Input from '../components/ui/Input';
-import { Eye, Download, Search, Filter, Users, Clock, Star, ChevronDown, ChevronUp, Coins } from 'lucide-react';
+import { Eye, Download, Search, Filter, Users, Clock, Star, ChevronDown, ChevronUp, Coins, ShoppingCart } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { getUserTokenInfo, useTokenToViewApplicant } from '../utils/tokenUtils';
+import { getUserTokens, useTokenForApplicant, getApplicantsWithViewStatus, calculateTokensNeeded } from '../utils/tokenUtils';
+import TokenPurchaseModal from '../components/tokens/TokenPurchaseModal';
 
 interface Job {
   id: number;
@@ -52,9 +53,9 @@ interface Applicant {
   linkedin_url?: string;
   working_hours?: number;
   work_type?: string;
-  hasViewed?: boolean;
-  canView?: boolean;
-  requiresToken?: boolean;
+  has_viewed?: boolean;
+  can_view?: boolean;
+  requires_token?: boolean;
 }
 
 interface TokenInfo {
@@ -78,6 +79,8 @@ const DashboardPage: React.FC = () => {
   const [passcode, setPasscode] = useState('');
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [tokensNeeded, setTokensNeeded] = useState(0);
 
   useEffect(() => {
     const storedEmail = localStorage.getItem('userEmail');
@@ -101,8 +104,9 @@ const DashboardPage: React.FC = () => {
     if (!email) return;
     
     try {
-      const tokenData = await getUserTokenInfo(email);
-      setTokenInfo(tokenData);
+      const tokens = await getUserTokens(email);
+      setTokenInfo(tokens);
+      console.log('Current token balance:', tokens);
     } catch (error) {
       console.error('Error fetching token info:', error);
       setTokenInfo({ tokensAvailable: 0, tokensUsed: 0 });
@@ -140,19 +144,16 @@ const DashboardPage: React.FC = () => {
       setJob(jobData);
 
       // Fetch applicants with view status
-      const { data: applicantsData, error: applicantsError } = await supabase
-        .rpc('get_applicants_with_view_status', {
-          p_job_id: jobId,
-          p_user_email: email
-        });
-
-      if (applicantsError) {
-        console.error('Error fetching applicants:', applicantsError);
-        toast.error('Error loading applicants');
-        return;
-      }
-
-      setApplicants(applicantsData || []);
+      const applicantsData = await getApplicantsWithViewStatus(jobId, email);
+      setApplicants(applicantsData);
+      
+      // Calculate tokens needed for remaining applicants
+      const needed = calculateTokensNeeded(applicantsData);
+      setTokensNeeded(needed);
+      
+      console.log('Applicants loaded:', applicantsData.length);
+      console.log('Tokens needed for remaining:', needed);
+      
     } catch (error) {
       console.error('Error in fetchJobAndApplicants:', error);
       toast.error('Error loading dashboard data');
@@ -161,42 +162,57 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleViewApplicant = async (applicant: any) => {
-    if (!applicant.hasViewed && (!tokenInfo || tokenInfo.tokensAvailable <= 0)) {
-      toast.error('You need tokens to view new applicants');
+  const handleViewApplicant = async (applicant: Applicant) => {
+    // If already viewed, show immediately
+    if (applicant.has_viewed) {
+      setSelectedApplicant(applicant);
       return;
     }
 
-    if (!applicant.hasViewed) {
-      console.log('Using token to view applicant:', {
-        email,
-        applicantId: applicant.id,
-        jobId: jobId
-      });
-      
-      const success = await useTokenToViewApplicant(email, applicant.id, jobId!);
-      
-      if (!success) {
-        toast.error('Failed to use token');
-        return;
-      }
-
-      // Update the applicants list to reflect the change
-      setApplicants(prevApplicants => 
-        prevApplicants.map(app => 
-          app.id === applicant.id 
-            ? { ...app, hasViewed: true, canView: true, requiresToken: false }
-            : app
-        )
-      );
-
-      // Refresh token info
-      await fetchTokenInfo();
-      
-      toast.success('Token used - applicant unlocked!');
+    // If no tokens available, show purchase modal
+    if (!tokenInfo || tokenInfo.tokensAvailable <= 0) {
+      setShowTokenModal(true);
+      return;
     }
 
-    setSelectedApplicant(applicant);
+    // Use token to view applicant
+    try {
+      const success = await useTokenForApplicant(email, applicant.id, jobId!);
+      
+      if (success) {
+        // Update applicant status
+        setApplicants(prevApplicants => 
+          prevApplicants.map(app => 
+            app.id === applicant.id 
+              ? { ...app, has_viewed: true, can_view: true, requires_token: false }
+              : app
+          )
+        );
+
+        // Refresh token info
+        await fetchTokenInfo();
+        
+        // Update tokens needed
+        const updatedNeeded = calculateTokensNeeded(
+          applicants.map(app => 
+            app.id === applicant.id 
+              ? { ...app, has_viewed: true }
+              : app
+          )
+        );
+        setTokensNeeded(updatedNeeded);
+        
+        // Show applicant
+        setSelectedApplicant({ ...applicant, has_viewed: true });
+        
+        toast.success('Token used - applicant unlocked!');
+      } else {
+        toast.error('Failed to use token. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error using token:', error);
+      toast.error('Error using token');
+    }
   };
 
   const fetchAllUserJobs = async () => {
@@ -276,6 +292,26 @@ const DashboardPage: React.FC = () => {
     return <Star className="w-4 h-4 text-red-600" />;
   };
 
+  const getButtonText = (applicant: Applicant) => {
+    if (applicant.has_viewed) {
+      return "View Details";
+    }
+    if (!tokenInfo || tokenInfo.tokensAvailable <= 0) {
+      return "🔒 Buy Tokens";
+    }
+    return "🔒 Use 1 Token";
+  };
+
+  const getButtonColor = (applicant: Applicant) => {
+    if (applicant.has_viewed) {
+      return "bg-blue-600 hover:bg-blue-700";
+    }
+    if (!tokenInfo || tokenInfo.tokensAvailable <= 0) {
+      return "bg-red-600 hover:bg-red-700";
+    }
+    return "bg-amber-600 hover:bg-amber-700";
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -324,6 +360,17 @@ const DashboardPage: React.FC = () => {
                 </div>
               )}
               
+              {tokensNeeded > 0 && (
+                <Button
+                  onClick={() => setShowTokenModal(true)}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Buy {tokensNeeded} More Tokens
+                </Button>
+              )}
+              
               <select
                 value={jobId}
                 onChange={(e) => navigate(`/dashboard/${e.target.value}`)}
@@ -358,27 +405,24 @@ const DashboardPage: React.FC = () => {
               
               <Card className="p-6">
                 <div className="flex items-center">
-                  <Clock className="w-8 h-8 text-green-600 mr-3" />
+                  <Eye className="w-8 h-8 text-green-600 mr-3" />
                   <div>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.ai_score && a.ai_score >= 70).length}
+                      {applicants.filter(a => a.has_viewed).length}
                     </p>
-                    <p className="text-sm text-gray-600">High Scores (70+)</p>
+                    <p className="text-sm text-gray-600">Viewed</p>
                   </div>
                 </div>
               </Card>
               
               <Card className="p-6">
                 <div className="flex items-center">
-                  <Star className="w-8 h-8 text-yellow-600 mr-3" />
+                  <Coins className="w-8 h-8 text-amber-600 mr-3" />
                   <div>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.length > 0 
-                        ? Math.round(applicants.reduce((sum, a) => sum + (a.ai_score || 0), 0) / applicants.length)
-                        : 0
-                      }
+                      {tokensNeeded}
                     </p>
-                    <p className="text-sm text-gray-600">Average Score</p>
+                    <p className="text-sm text-gray-600">Tokens Needed</p>
                   </div>
                 </div>
               </Card>
@@ -484,6 +528,11 @@ const DashboardPage: React.FC = () => {
                             <span className={`text-sm font-medium ${getScoreColor(applicant.ai_score)}`}>
                               {applicant.ai_score ? `${applicant.ai_score}/100` : 'Not scored'}
                             </span>
+                            {applicant.has_viewed && (
+                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                Viewed
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-gray-600 mt-1">{applicant.email}</p>
                           <p className="text-xs text-gray-500 mt-1">
@@ -495,22 +544,10 @@ const DashboardPage: React.FC = () => {
                           <Button
                             size="sm"
                             onClick={() => handleViewApplicant(applicant)}
-                            className={
-                              applicant.hasViewed 
-                                ? "bg-blue-600 hover:bg-blue-700" 
-                                : (!tokenInfo || tokenInfo.tokensAvailable <= 0)
-                                  ? "bg-gray-400 cursor-not-allowed"
-                                  : "bg-amber-600 hover:bg-amber-700"
-                            }
-                            disabled={!applicant.hasViewed && (!tokenInfo || tokenInfo.tokensAvailable <= 0)}
+                            className={getButtonColor(applicant)}
                           >
                             <Eye className="w-4 h-4 mr-1" />
-                            {applicant.hasViewed 
-                              ? "View Details" 
-                              : (!tokenInfo || tokenInfo.tokensAvailable <= 0)
-                                ? "🔒 No Tokens"
-                                : "🔒 Use 1 Token"
-                            }
+                            {getButtonText(applicant)}
                           </Button>
                         </div>
                       </div>
@@ -638,12 +675,39 @@ const DashboardPage: React.FC = () => {
                 <div className="text-center py-8">
                   <Eye className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">Select an applicant to view their details</p>
+                  {tokensNeeded > 0 && (
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800">
+                        You need {tokensNeeded} more tokens to view all remaining applicants.
+                      </p>
+                      <Button
+                        onClick={() => setShowTokenModal(true)}
+                        size="sm"
+                        className="mt-2 bg-amber-600 hover:bg-amber-700"
+                      >
+                        Buy Tokens
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </Card>
           </div>
         </div>
       </div>
+
+      {/* Token Purchase Modal */}
+      <TokenPurchaseModal
+        isOpen={showTokenModal}
+        onClose={() => setShowTokenModal(false)}
+        userEmail={email}
+        requiredTokens={tokensNeeded}
+        onSuccess={() => {
+          setShowTokenModal(false);
+          fetchTokenInfo();
+          fetchJobAndApplicants();
+        }}
+      />
     </div>
   );
 };

@@ -98,56 +98,66 @@ async function handleEvent(event: Stripe.Event) {
         if (isTokenPurchase && metadata?.user_email && metadata?.tokens) {
           console.info(`Processing token purchase for ${metadata.user_email}: ${metadata.tokens} tokens`);
           
-          const { id: checkout_session_id } = stripeData as Stripe.Checkout.Session;
+          const { id: checkout_session_id, amount_total } = stripeData as Stripe.Checkout.Session;
           
           try {
-            console.log('Calling add_tokens_to_user with params:', {
+            console.log('🎯 Processing token purchase:', {
               user_email_param: metadata.user_email,
               tokens_to_add: parseInt(metadata.tokens),
-              transaction_description: `Stripe purchase - ${metadata.tokens} tokens`,
-              stripe_session_id_param: checkout_session_id
+              stripe_session_id_param: checkout_session_id,
+              amount_paid: amount_total
             });
             
-            // Add tokens to user account using RPC function
-            const { data: tokenResult, error: tokenError } = await supabase.rpc('add_tokens_to_user', {
+            // Add tokens to user account
+            const { data: result, error: tokenError } = await supabase.rpc('add_tokens_to_user', {
               user_email_param: metadata.user_email,
               tokens_to_add: parseInt(metadata.tokens),
-              transaction_description: `Stripe purchase - ${metadata.tokens} tokens`,
-              stripe_session_id_param: checkout_session_id
+              stripe_session_id_param: checkout_session_id,
+              description_param: `Stripe purchase - ${metadata.tokens} tokens ($${(amount_total / 100).toFixed(2)})`
             });
           
-            console.log('RPC call result:', { tokenResult, tokenError });
+            console.log('🔍 Token addition result:', { result, tokenError });
             
             if (tokenError) {
-              console.error('Error adding tokens to user:', tokenError);
+              console.error('❌ Error adding tokens:', tokenError);
               throw tokenError;
             }
             
-            if (!tokenResult) {
-              console.error('Token addition function returned false or null');
-              throw new Error('Token addition failed - function returned false');
+            if (result !== true) {
+              console.error('❌ Token addition failed - function returned:', result);
+              throw new Error('Token addition function returned false');
             }
             
-            console.info(`Successfully added ${metadata.tokens} tokens to ${metadata.user_email}`);
+            console.info(`✅ Successfully added ${metadata.tokens} tokens to ${metadata.user_email}`);
             
-            // Verify tokens were added
-            console.log('Verifying token addition...');
-            const { data: verifyData, error: verifyError } = await supabase
-              .rpc('get_user_token_info', {
+            // Verify tokens were actually added
+            console.log('🔍 Verifying token addition...');
+            const { data: verifyData, error: verifyError } = await supabase.rpc('get_user_tokens', {
               user_email_param: metadata.user_email
-              });
-            
-            console.log('Verification result:', { verifyData, verifyError });
+            });
             
             if (!verifyError && verifyData && verifyData.length > 0) {
-              console.info(`Token verification: User ${metadata.user_email} now has ${verifyData[0].tokens_available} tokens available`);
+              const tokenBalance = verifyData[0];
+              console.info(`✅ Verification successful: User ${metadata.user_email} now has ${tokenBalance.tokens_available} tokens available`);
             } else {
-              console.warn('Token verification failed or returned no data');
+              console.warn('⚠️ Token verification failed:', verifyError);
             }
             
           } catch (error) {
-            console.error('Failed to process token purchase - detailed error:', error);
-            // Don't throw here to avoid webhook retry loops
+            console.error('❌ Failed to process token purchase:', error);
+            
+            // Try to log the error for debugging
+            try {
+              await supabase.from('token_transactions').insert({
+                user_email: metadata.user_email,
+                transaction_type: 'purchase',
+                tokens_amount: parseInt(metadata.tokens),
+                stripe_session_id: checkout_session_id,
+                description: `FAILED: Stripe purchase - ${metadata.tokens} tokens - Error: ${error.message}`
+              });
+            } catch (logError) {
+              console.error('Failed to log error transaction:', logError);
+            }
           }
         }
         
